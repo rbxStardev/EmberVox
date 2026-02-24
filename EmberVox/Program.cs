@@ -1,7 +1,4 @@
-﻿using Silk.NET.Maths;
-using Silk.NET.Windowing;
-
-namespace EmberVox;
+﻿namespace EmberVox;
 
 public static class Program
 {
