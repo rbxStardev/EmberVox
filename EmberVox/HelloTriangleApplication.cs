@@ -96,8 +96,11 @@ public unsafe class HelloTriangleApplication : IDisposable
     {
         // Enable validation layers
         if (EnableValidationLayers && !CheckValidationLayerSupport())
-            throw new Exception("Validation layer not supported");
+            throw new Exception("Validation layer(s) not supported");
 
+        // Using "(byte**)SilkMarshal.StringToPtr("string");" to turn strings to pointers since vulkan structs work with pointers/unmanaged types!
+        // Dont forget to dispose after usage with "SilkMarshal.Free((nint)reference);".
+        // Vulkan structs also need a SType specification on C#, or else the GPU won't be able to recognize the struct!
         ApplicationInfo appInfo = new()
         {
             SType = StructureType.ApplicationInfo,
@@ -111,7 +114,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         string[] extensions = GetRequiredInstanceExtensions();
 
         if (!CheckExtensionSupport(extensions))
-            throw new Exception("Required extension not supported");
+            throw new Exception("Required extension(s) not supported");
 
         InstanceCreateInfo createInfo = new()
         {
@@ -150,6 +153,11 @@ public unsafe class HelloTriangleApplication : IDisposable
         _vk.EnumerateInstanceLayerProperties(&layerCount, null);
 
         LayerProperties[] availableLayers = new LayerProperties[layerCount];
+
+        // Since vulkan loves working with pointers, we make a new pointer with the adress of the variable we want to use using:
+        // fixed(pointerType* pointer = variable)
+        // We use fixed so we can pin the variable in memory while we're using it!
+        // So basically now we have a pointer variable "pointing" to our original variable!
         fixed (LayerProperties* pAvailableLayers = availableLayers)
             _vk.EnumerateInstanceLayerProperties(&layerCount, pAvailableLayers);
 
@@ -158,6 +166,8 @@ public unsafe class HelloTriangleApplication : IDisposable
             bool found = false;
             foreach (LayerProperties layer in availableLayers)
             {
+                // You might notice we dont cleanup after using a marshal function here,
+                // this is because we're just converting an already existing pointer into something else we want to use!
                 if (SilkMarshal.PtrToString((nint)layer.LayerName) == required)
                 {
                     found = true;
@@ -236,6 +246,8 @@ public unsafe class HelloTriangleApplication : IDisposable
 
     public void Dispose()
     {
+        // DO NOT change the order of disposal, as it's very important!
+
         if (EnableValidationLayers)
         {
             _debugUtils.DestroyDebugUtilsMessenger(_instance, _debugMessenger, null);
@@ -246,6 +258,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         _vk.Dispose();
         _window.Dispose();
 
+        // Cute warning for the damn carbage collector so it shuts up
         GC.SuppressFinalize(this);
     }
 
