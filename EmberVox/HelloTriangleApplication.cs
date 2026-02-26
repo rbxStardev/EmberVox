@@ -24,11 +24,17 @@ public unsafe class HelloTriangleApplication : IDisposable
 
     private Vk _vk = null!;
     private Instance _instance;
+
     private ExtDebugUtils _debugUtils = null!;
     private DebugUtilsMessengerEXT _debugMessenger;
+
     private PhysicalDevice _physicalDevice;
     private Device _device;
     private Queue _graphicsQueue;
+    private Queue _presentQueue;
+
+    private KhrSurface _khrSurface = null!;
+    private SurfaceKHR _surfaceKhr;
 
     public void Run()
     {
@@ -56,6 +62,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         _vk = Vk.GetApi();
         CreateInstance();
         SetupDebugMessenger();
+        CreateSurface();
         PickPhysicalDevice();
         CreateLogicalDevice();
     }
@@ -260,6 +267,16 @@ public unsafe class HelloTriangleApplication : IDisposable
         return Vk.False;
     }
 
+    private void CreateSurface()
+    {
+        if (!_vk.TryGetInstanceExtension(_instance, out _khrSurface))
+            throw new Exception("Failed to get KhrSurface extension");
+
+        _surfaceKhr = _window
+            .VkSurface!.Create<AllocationCallbacks>(_instance.ToHandle(), null)
+            .ToSurface();
+    }
+
     private void PickPhysicalDevice()
     {
         IReadOnlyCollection<PhysicalDevice>? devices = _vk.GetPhysicalDevices(_instance);
@@ -318,7 +335,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         return hasVersion && hasGraphicsQueue && hasExtensions;
     }
 
-    private uint FindPhysicalDeviceQueueFamilies(PhysicalDevice device)
+    private (uint graphics, uint present) FindPhysicalDeviceQueueFamilies(PhysicalDevice device)
     {
         uint queueFamilyCount = 0;
         _vk.GetPhysicalDeviceQueueFamilyProperties(device, ref queueFamilyCount, null);
@@ -331,28 +348,37 @@ public unsafe class HelloTriangleApplication : IDisposable
                 pQueueFamilies
             );
 
+        uint? graphicsIndex = null;
+        uint? presentIndex = null;
+
         for (uint i = 0; i < queueFamilies.Length; i++)
         {
             if ((queueFamilies[i].QueueFlags & QueueFlags.GraphicsBit) != 0)
-            {
-                return i;
-            }
+                graphicsIndex = i;
+
+            _khrSurface.GetPhysicalDeviceSurfaceSupport(
+                device,
+                i,
+                _surfaceKhr,
+                out var presentSupport
+            );
+            if (presentSupport)
+                presentIndex = i;
+
+            if (graphicsIndex.HasValue && presentIndex.HasValue)
+                break;
         }
 
-        throw new Exception("Failed to find a graphics queue family!");
+        if (!graphicsIndex.HasValue || !presentIndex.HasValue)
+            throw new Exception("Failed to find a graphics queue family!");
+
+        return (graphicsIndex.Value, presentIndex.Value);
     }
 
     private void CreateLogicalDevice()
     {
-        uint graphicsIndex = FindPhysicalDeviceQueueFamilies(_physicalDevice);
+        (uint graphicsIndex, uint presentIndex) = FindPhysicalDeviceQueueFamilies(_physicalDevice);
         float queuePriority = 0.5f;
-        DeviceQueueCreateInfo deviceQueueCreateInfo = new()
-        {
-            SType = StructureType.DeviceQueueCreateInfo,
-            QueueFamilyIndex = graphicsIndex,
-            QueueCount = 1,
-            PQueuePriorities = &queuePriority,
-        };
 
         PhysicalDeviceFeatures deviceFeatures = new();
 
@@ -381,20 +407,40 @@ public unsafe class HelloTriangleApplication : IDisposable
             SType = StructureType.DeviceCreateInfo,
             PNext = &physicalDeviceFeatures2,
             QueueCreateInfoCount = 1,
-            PQueueCreateInfos = &deviceQueueCreateInfo,
             EnabledExtensionCount = (uint)DeviceExtensions.Length,
             PpEnabledExtensionNames = (byte**)SilkMarshal.StringArrayToPtr(DeviceExtensions),
         };
 
-        if (
-            _vk.CreateDevice(_physicalDevice, &deviceCreateInfo, null, out _device)
-            != Result.Success
-        )
+        HashSet<uint> uniqueIndices = [graphicsIndex, presentIndex];
+
+        uint[] indices = uniqueIndices.ToArray();
+        DeviceQueueCreateInfo[] queueCreateInfos = new DeviceQueueCreateInfo[indices.Length];
+
+        for (int i = 0; i < indices.Length; i++)
         {
-            throw new Exception("Failed to create logical device");
+            queueCreateInfos[i] = new DeviceQueueCreateInfo
+            {
+                SType = StructureType.DeviceQueueCreateInfo,
+                QueueFamilyIndex = indices[i],
+                QueueCount = 1,
+                PQueuePriorities = &queuePriority,
+            };
+        }
+
+        fixed (DeviceQueueCreateInfo* pQueueCreateInfos = queueCreateInfos)
+        {
+            deviceCreateInfo.QueueCreateInfoCount = (uint)queueCreateInfos.Length;
+            deviceCreateInfo.PQueueCreateInfos = pQueueCreateInfos;
+
+            if (
+                _vk.CreateDevice(_physicalDevice, &deviceCreateInfo, null, out _device)
+                != Result.Success
+            )
+                throw new Exception("Failed to create logical device");
         }
 
         _graphicsQueue = _vk.GetDeviceQueue(_device, graphicsIndex, 0);
+        _presentQueue = _vk.GetDeviceQueue(_device, presentIndex, 0);
 
         //Cleanup
         SilkMarshal.Free((nint)deviceCreateInfo.PpEnabledExtensionNames);
@@ -414,6 +460,9 @@ public unsafe class HelloTriangleApplication : IDisposable
             _debugUtils.DestroyDebugUtilsMessenger(_instance, _debugMessenger, null);
             _debugUtils.Dispose();
         }
+
+        _khrSurface.DestroySurface(_instance, _surfaceKhr, null);
+        _khrSurface.Dispose();
 
         _vk.DestroyDevice(_device, null);
         _vk.DestroyInstance(_instance, null);
