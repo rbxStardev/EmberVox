@@ -27,6 +27,8 @@ public unsafe class HelloTriangleApplication : IDisposable
     private ExtDebugUtils _debugUtils = null!;
     private DebugUtilsMessengerEXT _debugMessenger;
     private PhysicalDevice _physicalDevice;
+    private Device _device;
+    private Queue _graphicsQueue;
 
     public void Run()
     {
@@ -55,6 +57,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         CreateInstance();
         SetupDebugMessenger();
         PickPhysicalDevice();
+        CreateLogicalDevice();
     }
 
     private void CreateInstance()
@@ -339,6 +342,64 @@ public unsafe class HelloTriangleApplication : IDisposable
         throw new Exception("Failed to find a graphics queue family!");
     }
 
+    private void CreateLogicalDevice()
+    {
+        uint graphicsIndex = FindPhysicalDeviceQueueFamilies(_physicalDevice);
+        float queuePriority = 0.5f;
+        DeviceQueueCreateInfo deviceQueueCreateInfo = new()
+        {
+            SType = StructureType.DeviceQueueCreateInfo,
+            QueueFamilyIndex = graphicsIndex,
+            QueueCount = 1,
+            PQueuePriorities = &queuePriority,
+        };
+
+        PhysicalDeviceFeatures deviceFeatures = new();
+
+        PhysicalDeviceExtendedDynamicStateFeaturesEXT physicalDeviceExtendedDynamicStateFeaturesExt =
+            new()
+            {
+                SType = StructureType.PhysicalDeviceExtendedDynamicStateFeaturesExt,
+                ExtendedDynamicState = true,
+            };
+
+        PhysicalDeviceVulkan13Features physicalDeviceVulkan13Features = new()
+        {
+            SType = StructureType.PhysicalDeviceVulkan13Features,
+            DynamicRendering = true,
+            PNext = &physicalDeviceExtendedDynamicStateFeaturesExt,
+        };
+
+        PhysicalDeviceFeatures2 physicalDeviceFeatures2 = new()
+        {
+            SType = StructureType.PhysicalDeviceFeatures2,
+            PNext = &physicalDeviceVulkan13Features,
+        };
+
+        DeviceCreateInfo deviceCreateInfo = new()
+        {
+            SType = StructureType.DeviceCreateInfo,
+            PNext = &physicalDeviceFeatures2,
+            QueueCreateInfoCount = 1,
+            PQueueCreateInfos = &deviceQueueCreateInfo,
+            EnabledExtensionCount = (uint)DeviceExtensions.Length,
+            PpEnabledExtensionNames = (byte**)SilkMarshal.StringArrayToPtr(DeviceExtensions),
+        };
+
+        if (
+            _vk.CreateDevice(_physicalDevice, &deviceCreateInfo, null, out _device)
+            != Result.Success
+        )
+        {
+            throw new Exception("Failed to create logical device");
+        }
+
+        _graphicsQueue = _vk.GetDeviceQueue(_device, graphicsIndex, 0);
+
+        //Cleanup
+        SilkMarshal.Free((nint)deviceCreateInfo.PpEnabledExtensionNames);
+    }
+
     private void MainLoop()
     {
         _window.Run();
@@ -354,11 +415,12 @@ public unsafe class HelloTriangleApplication : IDisposable
             _debugUtils.Dispose();
         }
 
+        _vk.DestroyDevice(_device, null);
         _vk.DestroyInstance(_instance, null);
         _vk.Dispose();
         _window.Dispose();
 
-        // Cute warning for the damn carbage collector so it shuts up
+        // Cute warning for the damn carbage collector so it stops shouting at me and shuts up
         GC.SuppressFinalize(this);
     }
 }
