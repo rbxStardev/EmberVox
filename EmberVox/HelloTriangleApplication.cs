@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan.Extensions.EXT;
+using Silk.NET.Vulkan.Extensions.KHR;
 
 namespace EmberVox;
 
@@ -11,6 +12,7 @@ public unsafe class HelloTriangleApplication : IDisposable
     private const int WindowHeight = 600;
 
     private static readonly string[] ValidationLayers = ["VK_LAYER_KHRONOS_validation"];
+    private static readonly string[] DeviceExtensions = [KhrSwapchain.ExtensionName];
 
 #if DEBUG
     private const bool EnableValidationLayers = true;
@@ -24,6 +26,7 @@ public unsafe class HelloTriangleApplication : IDisposable
     private Instance _instance;
     private ExtDebugUtils _debugUtils = null!;
     private DebugUtilsMessengerEXT _debugMessenger;
+    private PhysicalDevice _physicalDevice;
 
     public void Run()
     {
@@ -51,45 +54,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         _vk = Vk.GetApi();
         CreateInstance();
         SetupDebugMessenger();
-    }
-
-    private void SetupDebugMessenger()
-    {
-        if (!EnableValidationLayers)
-            return;
-
-        DebugUtilsMessageSeverityFlagsEXT severityFlags =
-            DebugUtilsMessageSeverityFlagsEXT.VerboseBitExt
-            | DebugUtilsMessageSeverityFlagsEXT.WarningBitExt
-            | DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt;
-
-        DebugUtilsMessageTypeFlagsEXT messageTypeFlags =
-            DebugUtilsMessageTypeFlagsEXT.GeneralBitExt
-            | DebugUtilsMessageTypeFlagsEXT.PerformanceBitExt
-            | DebugUtilsMessageTypeFlagsEXT.ValidationBitExt;
-
-        DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfoExt = new()
-        {
-            SType = StructureType.DebugUtilsMessengerCreateInfoExt,
-            MessageSeverity = severityFlags,
-            MessageType = messageTypeFlags,
-            PfnUserCallback = new PfnDebugUtilsMessengerCallbackEXT(DebugCallback),
-        };
-
-        if (!_vk.TryGetInstanceExtension(_instance, out _debugUtils))
-            throw new Exception("Failed to get ExtDebugUtils extension");
-
-        if (
-            _debugUtils.CreateDebugUtilsMessenger(
-                _instance,
-                &debugUtilsMessengerCreateInfoExt,
-                null,
-                out _debugMessenger
-            ) != Result.Success
-        )
-        {
-            throw new Exception("Failed to create debug messenger");
-        }
+        PickPhysicalDevice();
     }
 
     private void CreateInstance()
@@ -185,6 +150,25 @@ public unsafe class HelloTriangleApplication : IDisposable
         return true;
     }
 
+    private string[] GetRequiredInstanceExtensions()
+    {
+        byte** extensions = _window.VkSurface!.GetRequiredExtensions(out uint extensionCount);
+
+        string[] requiredExtensions = new string[extensionCount];
+        for (int i = 0; i < extensionCount; i++)
+        {
+            requiredExtensions[i] = SilkMarshal.PtrToString((nint)extensions[i])!;
+        }
+
+        if (EnableValidationLayers)
+        {
+            Array.Resize(ref requiredExtensions, requiredExtensions.Length + 1);
+            requiredExtensions[^1] = ExtDebugUtils.ExtensionName;
+        }
+
+        return requiredExtensions;
+    }
+
     private bool CheckExtensionSupport(string[] required)
     {
         uint propertyCount = 0;
@@ -220,23 +204,139 @@ public unsafe class HelloTriangleApplication : IDisposable
         return true;
     }
 
-    private string[] GetRequiredInstanceExtensions()
+    private void SetupDebugMessenger()
     {
-        byte** extensions = _window.VkSurface!.GetRequiredExtensions(out uint extensionCount);
+        if (!EnableValidationLayers)
+            return;
 
-        string[] requiredExtensions = new string[extensionCount];
-        for (int i = 0; i < extensionCount; i++)
+        DebugUtilsMessageSeverityFlagsEXT severityFlags =
+            DebugUtilsMessageSeverityFlagsEXT.VerboseBitExt
+            | DebugUtilsMessageSeverityFlagsEXT.WarningBitExt
+            | DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt;
+
+        DebugUtilsMessageTypeFlagsEXT messageTypeFlags =
+            DebugUtilsMessageTypeFlagsEXT.GeneralBitExt
+            | DebugUtilsMessageTypeFlagsEXT.PerformanceBitExt
+            | DebugUtilsMessageTypeFlagsEXT.ValidationBitExt;
+
+        DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfoExt = new()
         {
-            requiredExtensions[i] = SilkMarshal.PtrToString((nint)extensions[i])!;
+            SType = StructureType.DebugUtilsMessengerCreateInfoExt,
+            MessageSeverity = severityFlags,
+            MessageType = messageTypeFlags,
+            PfnUserCallback = new PfnDebugUtilsMessengerCallbackEXT(DebugCallback),
+        };
+
+        if (!_vk.TryGetInstanceExtension(_instance, out _debugUtils))
+            throw new Exception("Failed to get ExtDebugUtils extension");
+
+        if (
+            _debugUtils.CreateDebugUtilsMessenger(
+                _instance,
+                &debugUtilsMessengerCreateInfoExt,
+                null,
+                out _debugMessenger
+            ) != Result.Success
+        )
+        {
+            throw new Exception("Failed to create debug messenger");
+        }
+    }
+
+    private static uint DebugCallback(
+        DebugUtilsMessageSeverityFlagsEXT severity,
+        DebugUtilsMessageTypeFlagsEXT type,
+        DebugUtilsMessengerCallbackDataEXT* pCallbackData,
+        void* pUserData
+    )
+    {
+        Console.Error.WriteLine(
+            $"validation layer: type {type.ToString()} msg: {Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage)}"
+        );
+
+        return Vk.False;
+    }
+
+    private void PickPhysicalDevice()
+    {
+        IReadOnlyCollection<PhysicalDevice>? devices = _vk.GetPhysicalDevices(_instance);
+        if (devices.Count == 0)
+            throw new Exception("failed to find GPUs with Vulkan support!");
+
+        foreach (PhysicalDevice device in devices)
+        {
+            if (IsPhysicalDeviceSuitable(device))
+            {
+                _physicalDevice = device;
+                return;
+            }
         }
 
-        if (EnableValidationLayers)
+        throw new Exception("failed to find a suitable GPU!");
+    }
+
+    private bool IsPhysicalDeviceSuitable(PhysicalDevice device)
+    {
+        bool hasVersion = _vk.GetPhysicalDeviceProperties(device).ApiVersion >= Vk.Version13;
+
+        uint queueFamilyCount = 0;
+        _vk.GetPhysicalDeviceQueueFamilyProperties(device, ref queueFamilyCount, null);
+
+        QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount];
+        fixed (QueueFamilyProperties* pQueueFamilies = queueFamilies)
+            _vk.GetPhysicalDeviceQueueFamilyProperties(
+                device,
+                ref queueFamilyCount,
+                pQueueFamilies
+            );
+
+        bool hasGraphicsQueue = queueFamilies.Any(queueFamily =>
+            (queueFamily.QueueFlags & QueueFlags.GraphicsBit) != 0
+        );
+
+        uint extensionCount = 0;
+        _vk.EnumerateDeviceExtensionProperties(device, (byte*)null, ref extensionCount, null);
+
+        ExtensionProperties[] extensions = new ExtensionProperties[extensionCount];
+        fixed (ExtensionProperties* pExtensions = extensions)
+            _vk.EnumerateDeviceExtensionProperties(
+                device,
+                (byte*)null,
+                ref extensionCount,
+                pExtensions
+            );
+
+        bool hasExtensions = DeviceExtensions.All(extensionName =>
+            extensions.Any(extension =>
+                SilkMarshal.PtrToString((nint)extension.ExtensionName) == extensionName
+            )
+        );
+
+        return hasVersion && hasGraphicsQueue && hasExtensions;
+    }
+
+    private uint FindPhysicalDeviceQueueFamilies(PhysicalDevice device)
+    {
+        uint queueFamilyCount = 0;
+        _vk.GetPhysicalDeviceQueueFamilyProperties(device, ref queueFamilyCount, null);
+
+        QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount];
+        fixed (QueueFamilyProperties* pQueueFamilies = queueFamilies)
+            _vk.GetPhysicalDeviceQueueFamilyProperties(
+                device,
+                ref queueFamilyCount,
+                pQueueFamilies
+            );
+
+        for (uint i = 0; i < queueFamilies.Length; i++)
         {
-            Array.Resize(ref requiredExtensions, requiredExtensions.Length + 1);
-            requiredExtensions[^1] = ExtDebugUtils.ExtensionName;
+            if ((queueFamilies[i].QueueFlags & QueueFlags.GraphicsBit) != 0)
+            {
+                return i;
+            }
         }
 
-        return requiredExtensions;
+        throw new Exception("Failed to find a graphics queue family!");
     }
 
     private void MainLoop()
@@ -260,19 +360,5 @@ public unsafe class HelloTriangleApplication : IDisposable
 
         // Cute warning for the damn carbage collector so it shuts up
         GC.SuppressFinalize(this);
-    }
-
-    private static uint DebugCallback(
-        DebugUtilsMessageSeverityFlagsEXT severity,
-        DebugUtilsMessageTypeFlagsEXT type,
-        DebugUtilsMessengerCallbackDataEXT* pCallbackData,
-        void* pUserData
-    )
-    {
-        Console.Error.WriteLine(
-            $"validation layer: type {type.ToString()} msg: {Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage)}"
-        );
-
-        return Vk.False;
     }
 }
