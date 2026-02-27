@@ -38,6 +38,7 @@ public unsafe class HelloTriangleApplication : IDisposable
     private KhrSwapchain _khrSwapChain = null!;
     private SwapchainKHR _swapChain;
     private Image[] _swapChainImages = null!;
+    private ImageView[] _swapChainImageViews = null!;
 
     private Format _swapChainImageFormat = Format.Undefined;
     private Extent2D _swapChainExtent;
@@ -72,6 +73,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         PickPhysicalDevice();
         CreateLogicalDevice();
         CreateSwapChain();
+        CreateSwapChainImageViews();
     }
 
     private void CreateInstance()
@@ -612,6 +614,34 @@ public unsafe class HelloTriangleApplication : IDisposable
         );
     }
 
+    private void CreateSwapChainImageViews()
+    {
+        _swapChainImageViews = new ImageView[_swapChainImages.Length];
+
+        ImageViewCreateInfo imageViewCreateInfo = new()
+        {
+            SType = StructureType.ImageViewCreateInfo,
+            ViewType = ImageViewType.Type2D,
+            Format = _swapChainImageFormat,
+            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, 1, 0, 1),
+        };
+
+        for (int i = 0; i < _swapChainImages.Length; i++)
+        {
+            imageViewCreateInfo.Image = _swapChainImages[i];
+
+            if (
+                _vk.CreateImageView(
+                    _device,
+                    &imageViewCreateInfo,
+                    null,
+                    out _swapChainImageViews[i]
+                ) != Result.Success
+            )
+                throw new Exception("Failed to create ImageView for SwapChain");
+        }
+    }
+
     private void MainLoop()
     {
         _window.Run();
@@ -625,6 +655,11 @@ public unsafe class HelloTriangleApplication : IDisposable
         {
             _debugUtils.DestroyDebugUtilsMessenger(_instance, _debugMessenger, null);
             _debugUtils.Dispose();
+        }
+
+        foreach (var imageView in _swapChainImageViews)
+        {
+            _vk.DestroyImageView(_device, imageView, null);
         }
 
         _khrSwapChain.DestroySwapchain(_device, _swapChain, null);
