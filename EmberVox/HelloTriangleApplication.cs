@@ -35,6 +35,12 @@ public unsafe class HelloTriangleApplication : IDisposable
 
     private KhrSurface _khrSurface = null!;
     private SurfaceKHR _surfaceKhr;
+    private KhrSwapchain _khrSwapChain = null!;
+    private SwapchainKHR _swapChain;
+    private Image[] _swapChainImages = null!;
+
+    private Format _swapChainImageFormat = Format.Undefined;
+    private Extent2D _swapChainExtent;
 
     public void Run()
     {
@@ -65,6 +71,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         CreateSurface();
         PickPhysicalDevice();
         CreateLogicalDevice();
+        CreateSwapChain();
     }
 
     private void CreateInstance()
@@ -446,6 +453,165 @@ public unsafe class HelloTriangleApplication : IDisposable
         SilkMarshal.Free((nint)deviceCreateInfo.PpEnabledExtensionNames);
     }
 
+    private void CreateSwapChain()
+    {
+        // Surface Capabilities
+        _khrSurface.GetPhysicalDeviceSurfaceCapabilities(
+            _physicalDevice,
+            _surfaceKhr,
+            out SurfaceCapabilitiesKHR surfaceCapabilities
+        );
+
+        // Surface Format
+        uint surfaceFormatCount = 0;
+        _khrSurface.GetPhysicalDeviceSurfaceFormats(
+            _physicalDevice,
+            _surfaceKhr,
+            ref surfaceFormatCount,
+            null
+        );
+
+        SurfaceFormatKHR[] availableSurfaceFormats = new SurfaceFormatKHR[surfaceFormatCount];
+        fixed (SurfaceFormatKHR* pAvailableSurfaceFormats = availableSurfaceFormats)
+            _khrSurface.GetPhysicalDeviceSurfaceFormats(
+                _physicalDevice,
+                _surfaceKhr,
+                ref surfaceFormatCount,
+                pAvailableSurfaceFormats
+            );
+
+        SurfaceFormatKHR swapChainSurfaceFormat = ChooseSwapSurfaceFormat(availableSurfaceFormats);
+
+        // SwapChain Extent
+        Extent2D swapChainExtent = ChooseSwapExtent(surfaceCapabilities);
+
+        // Image
+        uint imageCount = surfaceCapabilities.MaxImageCount + 1;
+
+        if (surfaceCapabilities.MaxImageCount > 0 && imageCount > surfaceCapabilities.MaxImageCount)
+            imageCount = surfaceCapabilities.MaxImageCount;
+
+        //Preset Modes
+        uint presentModeCount = 0;
+        _khrSurface.GetPhysicalDeviceSurfacePresentModes(
+            _physicalDevice,
+            _surfaceKhr,
+            ref presentModeCount,
+            null
+        );
+
+        PresentModeKHR[] availablePresentModes = new PresentModeKHR[presentModeCount];
+        fixed (PresentModeKHR* pPresentModes = availablePresentModes)
+            _khrSurface.GetPhysicalDeviceSurfacePresentModes(
+                _physicalDevice,
+                _surfaceKhr,
+                ref presentModeCount,
+                pPresentModes
+            );
+
+        // Generate creation info
+        SwapchainCreateInfoKHR swapchainCreateInfo = new()
+        {
+            SType = StructureType.SwapchainCreateInfoKhr,
+            Surface = _surfaceKhr,
+            MinImageCount = imageCount,
+            ImageFormat = swapChainSurfaceFormat.Format,
+            ImageColorSpace = swapChainSurfaceFormat.ColorSpace,
+            ImageExtent = swapChainExtent,
+            ImageArrayLayers = 1,
+            ImageUsage = ImageUsageFlags.ColorAttachmentBit,
+            ImageSharingMode = SharingMode.Exclusive,
+            PreTransform = surfaceCapabilities.CurrentTransform,
+            CompositeAlpha = CompositeAlphaFlagsKHR.OpaqueBitKhr,
+            PresentMode = ChooseSwapPresentMode(availablePresentModes),
+            Clipped = true,
+            OldSwapchain = default, // gives an error randomly idk why, DO NOT TOUCH
+        };
+
+        (uint graphicsIndex, uint presentIndex) = FindPhysicalDeviceQueueFamilies(_physicalDevice);
+        uint* queueFamilyIndices = stackalloc[] { graphicsIndex, presentIndex };
+
+        if (graphicsIndex != presentIndex)
+        {
+            swapchainCreateInfo.ImageSharingMode = SharingMode.Concurrent;
+            swapchainCreateInfo.QueueFamilyIndexCount = 2;
+            swapchainCreateInfo.PQueueFamilyIndices = queueFamilyIndices;
+        }
+        else
+        {
+            swapchainCreateInfo.ImageSharingMode = SharingMode.Exclusive;
+        }
+
+        // Use the extension for creation
+        if (!_vk.TryGetDeviceExtension(_instance, _device, out _khrSwapChain))
+            throw new Exception("Failed to get KhrSwapchain extension");
+
+        // And, finally, create it
+        if (
+            _khrSwapChain.CreateSwapchain(_device, &swapchainCreateInfo, null, out _swapChain)
+            != Result.Success
+        )
+            throw new Exception("Failed to create Swapchain");
+
+        _khrSwapChain.GetSwapchainImages(_device, _swapChain, ref imageCount, null);
+
+        _swapChainImages = new Image[imageCount];
+        fixed (Image* pSwapChainImages = _swapChainImages)
+            _khrSwapChain.GetSwapchainImages(_device, _swapChain, ref imageCount, pSwapChainImages);
+
+        _swapChainImageFormat = swapChainSurfaceFormat.Format;
+        _swapChainExtent = swapChainExtent;
+    }
+
+    private SurfaceFormatKHR ChooseSwapSurfaceFormat(SurfaceFormatKHR[] availableFormats)
+    {
+        foreach (SurfaceFormatKHR availableFormat in availableFormats)
+        {
+            if (
+                availableFormat is
+                { Format: Format.B8G8R8A8Srgb, ColorSpace: ColorSpaceKHR.SpaceSrgbNonlinearKhr }
+            )
+                return availableFormat;
+        }
+
+        return availableFormats[0];
+    }
+
+    private PresentModeKHR ChooseSwapPresentMode(PresentModeKHR[] availablePresentModes)
+    {
+        foreach (PresentModeKHR availablePresentMode in availablePresentModes)
+        {
+            if (availablePresentMode is PresentModeKHR.MailboxKhr)
+                return availablePresentMode;
+        }
+
+        return PresentModeKHR.FifoKhr;
+    }
+
+    private Extent2D ChooseSwapExtent(SurfaceCapabilitiesKHR capabilities)
+    {
+        if (capabilities.CurrentExtent.Width != uint.MaxValue)
+            return capabilities.CurrentExtent;
+
+        int width = _window.FramebufferSize.X;
+        int height = _window.FramebufferSize.Y;
+
+        return new Extent2D(
+            (uint)
+                Math.Clamp(
+                    width,
+                    capabilities.MinImageExtent.Width,
+                    capabilities.MaxImageExtent.Width
+                ),
+            (uint)
+                Math.Clamp(
+                    height,
+                    capabilities.MinImageExtent.Height,
+                    capabilities.MaxImageExtent.Height
+                )
+        );
+    }
+
     private void MainLoop()
     {
         _window.Run();
@@ -460,6 +626,9 @@ public unsafe class HelloTriangleApplication : IDisposable
             _debugUtils.DestroyDebugUtilsMessenger(_instance, _debugMessenger, null);
             _debugUtils.Dispose();
         }
+
+        _khrSwapChain.DestroySwapchain(_device, _swapChain, null);
+        _khrSwapChain.Dispose();
 
         _khrSurface.DestroySurface(_instance, _surfaceKhr, null);
         _khrSurface.Dispose();
