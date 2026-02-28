@@ -35,5 +35,7 @@ public unsafe class SurfaceContext : IDisposable
     {
         KhrSurfaceExtension.DestroySurface(_instance, SurfaceKhr, null);
         KhrSurfaceExtension.Dispose();
+
+        GC.SuppressFinalize(this);
     }
 }
