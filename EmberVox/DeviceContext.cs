@@ -4,7 +4,7 @@ using Silk.NET.Vulkan.Extensions.KHR;
 
 namespace EmberVox;
 
-public unsafe class DeviceContext : IDisposable
+public class DeviceContext : IDisposable
 {
     public PhysicalDevice PhysicalDevice { get; }
 
@@ -43,7 +43,7 @@ public unsafe class DeviceContext : IDisposable
         };
     }
 
-    private PhysicalDevice PickPhysicalDevice()
+    private unsafe PhysicalDevice PickPhysicalDevice()
     {
         IReadOnlyCollection<PhysicalDevice>? devices = _vk.GetPhysicalDevices(_instance);
         if (devices.Count == 0)
@@ -70,7 +70,7 @@ public unsafe class DeviceContext : IDisposable
         throw new Exception("failed to find a suitable GPU!");
     }
 
-    private bool IsPhysicalDeviceSuitable(PhysicalDevice device)
+    private unsafe bool IsPhysicalDeviceSuitable(PhysicalDevice device)
     {
         Logger.Info?.WriteLine("Checking if physical device is suitable...");
 
@@ -165,7 +165,7 @@ public unsafe class DeviceContext : IDisposable
         return (graphicsIndex.Value, presentIndex.Value);
     }
 
-    private Device CreateLogicalDevice(uint graphicsIndex, uint presentIndex)
+    private unsafe Device CreateLogicalDevice(uint graphicsIndex, uint presentIndex)
     {
         Device logicalDevice;
         float queuePriority = 0.5f;
@@ -237,7 +237,7 @@ public unsafe class DeviceContext : IDisposable
 
     public void Dispose()
     {
-        _vk.DestroyDevice(LogicalDevice, null);
+        _vk.DestroyDevice(LogicalDevice, ReadOnlySpan<AllocationCallbacks>.Empty);
 
         GC.SuppressFinalize(this);
     }

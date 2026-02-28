@@ -2,7 +2,7 @@ using Silk.NET.Vulkan.Extensions.KHR;
 
 namespace EmberVox;
 
-public unsafe class SurfaceContext : IDisposable
+public class SurfaceContext : IDisposable
 {
     public KhrSurface KhrSurfaceExtension { get; }
     public SurfaceKHR SurfaceKhr { get; }
@@ -24,7 +24,7 @@ public unsafe class SurfaceContext : IDisposable
         SurfaceKhr = CreateSurface();
     }
 
-    private SurfaceKHR CreateSurface()
+    private unsafe SurfaceKHR CreateSurface()
     {
         return _window
             .VkSurface!.Create<AllocationCallbacks>(_instance.ToHandle(), null)
@@ -33,7 +33,11 @@ public unsafe class SurfaceContext : IDisposable
 
     public void Dispose()
     {
-        KhrSurfaceExtension.DestroySurface(_instance, SurfaceKhr, null);
+        KhrSurfaceExtension.DestroySurface(
+            _instance,
+            SurfaceKhr,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
         KhrSurfaceExtension.Dispose();
 
         GC.SuppressFinalize(this);

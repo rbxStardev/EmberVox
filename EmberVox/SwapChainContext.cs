@@ -2,7 +2,7 @@ using Silk.NET.Vulkan.Extensions.KHR;
 
 namespace EmberVox;
 
-public unsafe class SwapChainContext : IDisposable
+public class SwapChainContext : IDisposable
 {
     public KhrSwapchain KhrSwapChainExtension { get; }
     public SwapchainKHR SwapChainKhr { get; }
@@ -55,7 +55,7 @@ public unsafe class SwapChainContext : IDisposable
         SwapChainImageViews = CreateSwapChainImageViews();
     }
 
-    private SwapchainKHR CreateSwapChain()
+    private unsafe SwapchainKHR CreateSwapChain()
     {
         Span<uint> imageCount = stackalloc uint[1];
         imageCount[0] = _surfaceCapabilities.MaxImageCount + 1;
@@ -236,7 +236,7 @@ public unsafe class SwapChainContext : IDisposable
         return images;
     }
 
-    private ImageView[] CreateSwapChainImageViews()
+    private unsafe ImageView[] CreateSwapChainImageViews()
     {
         ImageView[] imageViews = new ImageView[_images.Length];
 
@@ -270,10 +270,18 @@ public unsafe class SwapChainContext : IDisposable
     {
         foreach (var imageView in SwapChainImageViews)
         {
-            _vk.DestroyImageView(_deviceContext.LogicalDevice, imageView, null);
+            _vk.DestroyImageView(
+                _deviceContext.LogicalDevice,
+                imageView,
+                ReadOnlySpan<AllocationCallbacks>.Empty
+            );
         }
 
-        KhrSwapChainExtension.DestroySwapchain(_deviceContext.LogicalDevice, SwapChainKhr, null);
+        KhrSwapChainExtension.DestroySwapchain(
+            _deviceContext.LogicalDevice,
+            SwapChainKhr,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
         KhrSwapChainExtension.Dispose();
 
         GC.SuppressFinalize(this);

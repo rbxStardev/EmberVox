@@ -4,7 +4,7 @@ using Silk.NET.Vulkan.Extensions.EXT;
 
 namespace EmberVox;
 
-public unsafe class DefaultDebugContext : IDisposable
+public class DefaultDebugContext : IDisposable
 {
     public ExtDebugUtils DebugUtilsExtension { get; }
     public DebugUtilsMessengerEXT DebugMessenger { get; }
@@ -24,7 +24,7 @@ public unsafe class DefaultDebugContext : IDisposable
         DebugMessenger = CreateDebugMessenger();
     }
 
-    private DebugUtilsMessengerEXT CreateDebugMessenger()
+    private unsafe DebugUtilsMessengerEXT CreateDebugMessenger()
     {
         const DebugUtilsMessageSeverityFlagsEXT severityFlags =
             DebugUtilsMessageSeverityFlagsEXT.VerboseBitExt
@@ -59,7 +59,7 @@ public unsafe class DefaultDebugContext : IDisposable
         return debugMessenger;
     }
 
-    private static uint DebugCallback(
+    private static unsafe uint DebugCallback(
         DebugUtilsMessageSeverityFlagsEXT severity,
         DebugUtilsMessageTypeFlagsEXT type,
         DebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -111,7 +111,11 @@ public unsafe class DefaultDebugContext : IDisposable
 
     public void Dispose()
     {
-        DebugUtilsExtension.DestroyDebugUtilsMessenger(_instance, DebugMessenger, null);
+        DebugUtilsExtension.DestroyDebugUtilsMessenger(
+            _instance,
+            DebugMessenger,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
         DebugUtilsExtension.Dispose();
 
         GC.SuppressFinalize(this);
