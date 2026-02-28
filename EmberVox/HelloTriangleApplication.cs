@@ -6,7 +6,7 @@ using Silk.NET.Vulkan.Extensions.EXT;
 
 namespace EmberVox;
 
-public unsafe class HelloTriangleApplication : IDisposable
+public class HelloTriangleApplication : IDisposable
 {
     private const int WindowWidth = 800;
     private const int WindowHeight = 600;
@@ -87,7 +87,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         Dispose();
     }
 
-    private Instance CreateInstance()
+    private unsafe Instance CreateInstance()
     {
         // Enable validation layers
         Logger.Metric?.WriteLine(
@@ -153,7 +153,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         return instance;
     }
 
-    private bool CheckValidationLayerSupport()
+    private unsafe bool CheckValidationLayerSupport()
     {
         Span<uint> layerCount = stackalloc uint[1];
         _vk.EnumerateInstanceLayerProperties(layerCount, Span<LayerProperties>.Empty);
@@ -185,7 +185,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         return true;
     }
 
-    private string[] GetRequiredInstanceExtensions()
+    private unsafe string[] GetRequiredInstanceExtensions()
     {
         byte** extensions = _window.VkSurface!.GetRequiredExtensions(out uint extensionCount);
 
@@ -204,7 +204,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         return requiredExtensions;
     }
 
-    private bool CheckExtensionSupport(string[] required)
+    private unsafe bool CheckExtensionSupport(string[] required)
     {
         Span<uint> propertyCount = stackalloc uint[1];
         _vk.EnumerateInstanceExtensionProperties(
@@ -264,7 +264,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         _surfaceContext.Dispose();
         _deviceContext.Dispose();
 
-        _vk.DestroyInstance(_instance, null);
+        _vk.DestroyInstance(_instance, ReadOnlySpan<AllocationCallbacks>.Empty);
         _vk.Dispose();
         _window.Dispose();
 
