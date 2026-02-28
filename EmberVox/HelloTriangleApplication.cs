@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using EmberVox.Logging;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan.Extensions.EXT;
@@ -66,23 +67,59 @@ public unsafe class HelloTriangleApplication : IDisposable
 
     private void InitVulkan()
     {
+        Logger.Info?.WriteLine("~ Initializing Vulkan... ~");
+        Console.WriteLine();
         _vk = Vk.GetApi();
+
+        Logger.Debug?.WriteLine("-----> Creating Instance... <-----");
         CreateInstance();
+        Logger.Debug?.WriteLine("-----> Instance creation: OK <-----");
+        Console.WriteLine();
+
+        Logger.Debug?.WriteLine("-----> Creating DebugMessenger... <-----");
         SetupDebugMessenger();
+        Logger.Debug?.WriteLine("-----> DebugMessenger creation: OK <-----");
+        Console.WriteLine();
+
+        Logger.Debug?.WriteLine("-----> Creating Surface... <-----");
         CreateSurface();
+        Logger.Debug?.WriteLine("-----> Surface creation: OK <-----");
+        Console.WriteLine();
+
+        Logger.Debug?.WriteLine("-----> Picking PhysicalDevice... <-----");
         PickPhysicalDevice();
+        Logger.Debug?.WriteLine("-----> PhysicalDevice picking: OK <-----");
+        Console.WriteLine();
+
+        Logger.Debug?.WriteLine("-----> Creating LogicalDevice... <-----");
         CreateLogicalDevice();
+        Logger.Debug?.WriteLine("-----> LogicalDevice creation: OK <-----");
+        Console.WriteLine();
+
+        Logger.Debug?.WriteLine("-----> Creating SwapChain... <-----");
         CreateSwapChain();
+        Logger.Debug?.WriteLine("-----> SwapChain creation: OK <-----");
+        Console.WriteLine();
+
+        Logger.Debug?.WriteLine("-----> Creating SwapChainImageViews... <-----");
         CreateSwapChainImageViews();
+        Logger.Debug?.WriteLine("-----> SwapChainImageViews creation: OK <-----");
+        Console.WriteLine();
+
+        Logger.Info?.WriteLine("~ Vulkan successfully initialized. ~");
+        Console.WriteLine();
     }
 
     private void CreateInstance()
     {
         // Enable validation layers
+        Logger.Metric?.WriteLine(
+            $"Checking for {ValidationLayers.Length} validation layer(s) support: {string.Join(", ", ValidationLayers)}"
+        );
         if (EnableValidationLayers && !CheckValidationLayerSupport())
             throw new Exception("Validation layer(s) not supported");
 
-        // Using "(byte**)SilkMarshal.StringToPtr("string");" to turn strings to pointers since vulkan structs work with pointers/unmanaged types!
+        // Using "(byte*)SilkMarshal.StringToPtr("string");" to turn strings to pointers since vulkan structs work with pointers/unmanaged types!
         // Dont forget to dispose after usage with "SilkMarshal.Free((nint)reference);".
         // Vulkan structs also need a SType specification on C#, or else the GPU won't be able to recognize the struct!
         ApplicationInfo appInfo = new()
@@ -96,6 +133,9 @@ public unsafe class HelloTriangleApplication : IDisposable
         };
 
         string[] extensions = GetRequiredInstanceExtensions();
+        Logger.Metric?.WriteLine(
+            $"Checking for {extensions.Length} extension(s) support: {string.Join(", ", extensions)}"
+        );
 
         if (!CheckExtensionSupport(extensions))
             throw new Exception("Required extension(s) not supported");
@@ -110,6 +150,9 @@ public unsafe class HelloTriangleApplication : IDisposable
 
         if (EnableValidationLayers)
         {
+            Logger.Metric?.WriteLine(
+                $"{ValidationLayers.Length} Enabled validation layer(s): {string.Join(", ", ValidationLayers)}"
+            );
             createInfo.EnabledLayerCount = (uint)ValidationLayers.Length;
 
             createInfo.PpEnabledLayerNames = (byte**)SilkMarshal.StringArrayToPtr(ValidationLayers);
@@ -133,17 +176,12 @@ public unsafe class HelloTriangleApplication : IDisposable
 
     private bool CheckValidationLayerSupport()
     {
-        uint layerCount;
-        _vk.EnumerateInstanceLayerProperties(&layerCount, null);
+        Span<uint> layerCount = stackalloc uint[1];
+        _vk.EnumerateInstanceLayerProperties(layerCount, Span<LayerProperties>.Empty);
 
-        LayerProperties[] availableLayers = new LayerProperties[layerCount];
+        LayerProperties[] availableLayers = new LayerProperties[layerCount[0]];
 
-        // Since vulkan loves working with pointers, we make a new pointer with the adress of the variable we want to use using:
-        // fixed(pointerType* pointer = variable)
-        // We use fixed so we can pin the variable in memory while we're using it!
-        // So basically now we have a pointer variable "pointing" to our original variable!
-        fixed (LayerProperties* pAvailableLayers = availableLayers)
-            _vk.EnumerateInstanceLayerProperties(&layerCount, pAvailableLayers);
+        _vk.EnumerateInstanceLayerProperties(layerCount, availableLayers.AsSpan());
 
         foreach (string required in ValidationLayers)
         {
@@ -154,6 +192,7 @@ public unsafe class HelloTriangleApplication : IDisposable
                 // this is because we're just converting an already existing pointer into something else we want to use!
                 if (SilkMarshal.PtrToString((nint)layer.LayerName) == required)
                 {
+                    Logger.Info?.WriteLine($"Found support for validation layer: {required}");
                     found = true;
                     break;
                 }
@@ -161,7 +200,7 @@ public unsafe class HelloTriangleApplication : IDisposable
 
             if (!found)
             {
-                Console.WriteLine($"Validation layer not supported: {required}");
+                Logger.Warning?.WriteLine($"Validation layer not supported: {required}");
                 return false;
             }
         }
@@ -190,18 +229,19 @@ public unsafe class HelloTriangleApplication : IDisposable
 
     private bool CheckExtensionSupport(string[] required)
     {
-        uint propertyCount = 0;
-        _vk.EnumerateInstanceExtensionProperties((byte*)null, &propertyCount, null);
+        Span<uint> propertyCount = stackalloc uint[1];
+        _vk.EnumerateInstanceExtensionProperties(
+            ReadOnlySpan<byte>.Empty,
+            propertyCount,
+            Span<ExtensionProperties>.Empty
+        );
 
-        ExtensionProperties[] extensionProperties = new ExtensionProperties[propertyCount];
-        fixed (ExtensionProperties* pExtensionProperties = extensionProperties)
-        {
-            _vk.EnumerateInstanceExtensionProperties(
-                (byte*)null,
-                &propertyCount,
-                pExtensionProperties
-            );
-        }
+        ExtensionProperties[] extensionProperties = new ExtensionProperties[propertyCount[0]];
+        _vk.EnumerateInstanceExtensionProperties(
+            ReadOnlySpan<byte>.Empty,
+            propertyCount,
+            extensionProperties.AsSpan()
+        );
 
         foreach (string requiredName in required)
         {
@@ -211,13 +251,17 @@ public unsafe class HelloTriangleApplication : IDisposable
             {
                 if (SilkMarshal.PtrToString((nint)prop.ExtensionName) == requiredName)
                 {
+                    Logger.Info?.WriteLine($"Found support for extension: {required}");
                     found = true;
                     break;
                 }
             }
 
             if (!found)
+            {
+                Logger.Warning?.WriteLine($"Extension not supported: {required}");
                 return false;
+            }
         }
 
         return true;
@@ -269,7 +313,7 @@ public unsafe class HelloTriangleApplication : IDisposable
         void* pUserData
     )
     {
-        Console.Error.WriteLine(
+        Logger.Error?.WriteLine(
             $"validation layer: type {type.ToString()} msg: {Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage)}"
         );
 
@@ -292,10 +336,20 @@ public unsafe class HelloTriangleApplication : IDisposable
         if (devices.Count == 0)
             throw new Exception("failed to find GPUs with Vulkan support!");
 
+        Logger.Info?.WriteLine("Checking for suitable physical devices...");
         foreach (PhysicalDevice device in devices)
         {
             if (IsPhysicalDeviceSuitable(device))
             {
+                _vk.GetPhysicalDeviceProperties(device, out PhysicalDeviceProperties properties);
+                Logger.Info?.WriteLine("Found suitable physical device, listing properties...");
+                Logger.Metric?.WriteLine(
+                    $"Device Name: {SilkMarshal.PtrToString((nint)properties.DeviceName)}"
+                );
+                Logger.Metric?.WriteLine($"Device Type: {properties.DeviceType.ToString()}");
+                Logger.Metric?.WriteLine($"Device Vendor ID: {properties.VendorID}");
+                Logger.Metric?.WriteLine($"Device ID: {properties.DeviceID}");
+
                 _physicalDevice = device;
                 return;
             }
@@ -306,56 +360,71 @@ public unsafe class HelloTriangleApplication : IDisposable
 
     private bool IsPhysicalDeviceSuitable(PhysicalDevice device)
     {
+        Logger.Info?.WriteLine("Checking if physical device is suitable...");
+
         bool hasVersion = _vk.GetPhysicalDeviceProperties(device).ApiVersion >= Vk.Version13;
+        Logger.Metric?.WriteLine("Physical device vulkan version is greater than Vk13 (Passed)");
 
-        uint queueFamilyCount = 0;
-        _vk.GetPhysicalDeviceQueueFamilyProperties(device, ref queueFamilyCount, null);
+        Span<uint> queueFamilyCount = stackalloc uint[1];
+        _vk.GetPhysicalDeviceQueueFamilyProperties(
+            device,
+            queueFamilyCount,
+            Span<QueueFamilyProperties>.Empty
+        );
 
-        QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount];
-        fixed (QueueFamilyProperties* pQueueFamilies = queueFamilies)
-            _vk.GetPhysicalDeviceQueueFamilyProperties(
-                device,
-                ref queueFamilyCount,
-                pQueueFamilies
-            );
+        QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount[0]];
+        _vk.GetPhysicalDeviceQueueFamilyProperties(
+            device,
+            queueFamilyCount,
+            queueFamilies.AsSpan()
+        );
 
         bool hasGraphicsQueue = queueFamilies.Any(queueFamily =>
             (queueFamily.QueueFlags & QueueFlags.GraphicsBit) != 0
         );
+        Logger.Metric?.WriteLine("Physical device has graphics queue (Passed)");
 
-        uint extensionCount = 0;
-        _vk.EnumerateDeviceExtensionProperties(device, (byte*)null, ref extensionCount, null);
+        Span<uint> extensionCount = stackalloc uint[1];
+        _vk.EnumerateDeviceExtensionProperties(
+            device,
+            ReadOnlySpan<byte>.Empty,
+            extensionCount,
+            Span<ExtensionProperties>.Empty
+        );
 
-        ExtensionProperties[] extensions = new ExtensionProperties[extensionCount];
-        fixed (ExtensionProperties* pExtensions = extensions)
-            _vk.EnumerateDeviceExtensionProperties(
-                device,
-                (byte*)null,
-                ref extensionCount,
-                pExtensions
-            );
+        ExtensionProperties[] extensions = new ExtensionProperties[extensionCount[0]];
+        _vk.EnumerateDeviceExtensionProperties(
+            device,
+            ReadOnlySpan<byte>.Empty,
+            extensionCount,
+            extensions.AsSpan()
+        );
 
         bool hasExtensions = DeviceExtensions.All(extensionName =>
             extensions.Any(extension =>
                 SilkMarshal.PtrToString((nint)extension.ExtensionName) == extensionName
             )
         );
+        Logger.Metric?.WriteLine("Physical device extensions are valid (Passed)");
 
         return hasVersion && hasGraphicsQueue && hasExtensions;
     }
 
     private (uint graphics, uint present) FindPhysicalDeviceQueueFamilies(PhysicalDevice device)
     {
-        uint queueFamilyCount = 0;
-        _vk.GetPhysicalDeviceQueueFamilyProperties(device, ref queueFamilyCount, null);
+        Span<uint> queueFamilyCount = stackalloc uint[1];
+        _vk.GetPhysicalDeviceQueueFamilyProperties(
+            device,
+            queueFamilyCount,
+            Span<QueueFamilyProperties>.Empty
+        );
 
-        QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount];
-        fixed (QueueFamilyProperties* pQueueFamilies = queueFamilies)
-            _vk.GetPhysicalDeviceQueueFamilyProperties(
-                device,
-                ref queueFamilyCount,
-                pQueueFamilies
-            );
+        QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount[0]];
+        _vk.GetPhysicalDeviceQueueFamilyProperties(
+            device,
+            queueFamilyCount,
+            queueFamilies.AsSpan()
+        );
 
         uint? graphicsIndex = null;
         uint? presentIndex = null;
@@ -465,22 +534,21 @@ public unsafe class HelloTriangleApplication : IDisposable
         );
 
         // Surface Format
-        uint surfaceFormatCount = 0;
+        Span<uint> surfaceFormatCount = stackalloc uint[1];
         _khrSurface.GetPhysicalDeviceSurfaceFormats(
             _physicalDevice,
             _surfaceKhr,
-            ref surfaceFormatCount,
-            null
+            surfaceFormatCount,
+            Span<SurfaceFormatKHR>.Empty
         );
 
-        SurfaceFormatKHR[] availableSurfaceFormats = new SurfaceFormatKHR[surfaceFormatCount];
-        fixed (SurfaceFormatKHR* pAvailableSurfaceFormats = availableSurfaceFormats)
-            _khrSurface.GetPhysicalDeviceSurfaceFormats(
-                _physicalDevice,
-                _surfaceKhr,
-                ref surfaceFormatCount,
-                pAvailableSurfaceFormats
-            );
+        SurfaceFormatKHR[] availableSurfaceFormats = new SurfaceFormatKHR[surfaceFormatCount[0]];
+        _khrSurface.GetPhysicalDeviceSurfaceFormats(
+            _physicalDevice,
+            _surfaceKhr,
+            surfaceFormatCount,
+            availableSurfaceFormats.AsSpan()
+        );
 
         SurfaceFormatKHR swapChainSurfaceFormat = ChooseSwapSurfaceFormat(availableSurfaceFormats);
 
@@ -488,35 +556,38 @@ public unsafe class HelloTriangleApplication : IDisposable
         Extent2D swapChainExtent = ChooseSwapExtent(surfaceCapabilities);
 
         // Image
-        uint imageCount = surfaceCapabilities.MaxImageCount + 1;
+        Span<uint> imageCount = stackalloc uint[1];
+        imageCount[0] = surfaceCapabilities.MaxImageCount + 1;
 
-        if (surfaceCapabilities.MaxImageCount > 0 && imageCount > surfaceCapabilities.MaxImageCount)
-            imageCount = surfaceCapabilities.MaxImageCount;
+        if (
+            surfaceCapabilities.MaxImageCount > 0
+            && imageCount[0] > surfaceCapabilities.MaxImageCount
+        )
+            imageCount[0] = surfaceCapabilities.MaxImageCount;
 
         //Preset Modes
-        uint presentModeCount = 0;
+        Span<uint> presentModeCount = stackalloc uint[1];
         _khrSurface.GetPhysicalDeviceSurfacePresentModes(
             _physicalDevice,
             _surfaceKhr,
-            ref presentModeCount,
-            null
+            presentModeCount,
+            Span<PresentModeKHR>.Empty
         );
 
-        PresentModeKHR[] availablePresentModes = new PresentModeKHR[presentModeCount];
-        fixed (PresentModeKHR* pPresentModes = availablePresentModes)
-            _khrSurface.GetPhysicalDeviceSurfacePresentModes(
-                _physicalDevice,
-                _surfaceKhr,
-                ref presentModeCount,
-                pPresentModes
-            );
+        PresentModeKHR[] availablePresentModes = new PresentModeKHR[presentModeCount[0]];
+        _khrSurface.GetPhysicalDeviceSurfacePresentModes(
+            _physicalDevice,
+            _surfaceKhr,
+            presentModeCount,
+            availablePresentModes.AsSpan()
+        );
 
         // Generate creation info
         SwapchainCreateInfoKHR swapchainCreateInfo = new()
         {
             SType = StructureType.SwapchainCreateInfoKhr,
             Surface = _surfaceKhr,
-            MinImageCount = imageCount,
+            MinImageCount = imageCount[0],
             ImageFormat = swapChainSurfaceFormat.Format,
             ImageColorSpace = swapChainSurfaceFormat.ColorSpace,
             ImageExtent = swapChainExtent,
@@ -555,11 +626,15 @@ public unsafe class HelloTriangleApplication : IDisposable
         )
             throw new Exception("Failed to create Swapchain");
 
-        _khrSwapChain.GetSwapchainImages(_device, _swapChain, ref imageCount, null);
+        _khrSwapChain.GetSwapchainImages(_device, _swapChain, imageCount, Span<Image>.Empty);
 
-        _swapChainImages = new Image[imageCount];
-        fixed (Image* pSwapChainImages = _swapChainImages)
-            _khrSwapChain.GetSwapchainImages(_device, _swapChain, ref imageCount, pSwapChainImages);
+        _swapChainImages = new Image[imageCount[0]];
+        _khrSwapChain.GetSwapchainImages(
+            _device,
+            _swapChain,
+            imageCount,
+            _swapChainImages.AsSpan()
+        );
 
         _swapChainImageFormat = swapChainSurfaceFormat.Format;
         _swapChainExtent = swapChainExtent;
@@ -651,6 +726,8 @@ public unsafe class HelloTriangleApplication : IDisposable
     {
         // DO NOT change the order of disposal, as it's very important!
 
+        Logger.Debug?.WriteLine("Application closed, disposing...");
+
         if (EnableValidationLayers)
         {
             _debugUtils.DestroyDebugUtilsMessenger(_instance, _debugMessenger, null);
@@ -672,6 +749,8 @@ public unsafe class HelloTriangleApplication : IDisposable
         _vk.DestroyInstance(_instance, null);
         _vk.Dispose();
         _window.Dispose();
+
+        Logger.Debug?.WriteLine("Application successfully disposed, exiting...");
 
         // Cute warning for the damn carbage collector so it stops shouting at me and shuts up
         GC.SuppressFinalize(this);
