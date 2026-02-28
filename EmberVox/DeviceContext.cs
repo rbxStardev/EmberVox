@@ -52,19 +52,19 @@ public unsafe class DeviceContext : IDisposable
         Logger.Info?.WriteLine("Checking for suitable physical devices...");
         foreach (PhysicalDevice device in devices)
         {
-            if (IsPhysicalDeviceSuitable(device))
-            {
-                _vk.GetPhysicalDeviceProperties(device, out PhysicalDeviceProperties properties);
-                Logger.Info?.WriteLine("Found suitable physical device, listing properties...");
-                Logger.Metric?.WriteLine(
-                    $"Device Name: {SilkMarshal.PtrToString((nint)properties.DeviceName)}"
-                );
-                Logger.Metric?.WriteLine($"Device Type: {properties.DeviceType.ToString()}");
-                Logger.Metric?.WriteLine($"Device Vendor ID: {properties.VendorID}");
-                Logger.Metric?.WriteLine($"Device ID: {properties.DeviceID}");
+            if (!IsPhysicalDeviceSuitable(device))
+                continue;
 
-                return device;
-            }
+            _vk.GetPhysicalDeviceProperties(device, out PhysicalDeviceProperties properties);
+            Logger.Info?.WriteLine("Found suitable physical device, listing properties...");
+            Logger.Metric?.WriteLine(
+                $"Device Name: {SilkMarshal.PtrToString((nint)properties.DeviceName)}"
+            );
+            Logger.Metric?.WriteLine($"Device Type: {properties.DeviceType.ToString()}");
+            Logger.Metric?.WriteLine($"Device Vendor ID: {properties.VendorID}");
+            Logger.Metric?.WriteLine($"Device ID: {properties.DeviceID}");
+
+            return device;
         }
 
         throw new Exception("failed to find a suitable GPU!");
@@ -238,5 +238,7 @@ public unsafe class DeviceContext : IDisposable
     public void Dispose()
     {
         _vk.DestroyDevice(LogicalDevice, null);
+
+        GC.SuppressFinalize(this);
     }
 }

@@ -81,7 +81,7 @@ public unsafe class SwapChainContext : IDisposable
             CompositeAlpha = CompositeAlphaFlagsKHR.OpaqueBitKhr,
             PresentMode = _presentMode,
             Clipped = true,
-            OldSwapchain = default, // gives an error randomly idk why, DO NOT TOUCH
+            OldSwapchain = default, // gives an error randomly IDK why, DO NOT TOUCH
         };
 
         uint* queueFamilyIndices = stackalloc[] {
@@ -275,5 +275,7 @@ public unsafe class SwapChainContext : IDisposable
 
         KhrSwapChainExtension.DestroySwapchain(_deviceContext.LogicalDevice, SwapChainKhr, null);
         KhrSwapChainExtension.Dispose();
+
+        GC.SuppressFinalize(this);
     }
 }

@@ -7,7 +7,6 @@ public static class Program
         try
         {
             HelloTriangleApplication app = new();
-            app.Run();
         }
         catch (Exception e)
         {
