@@ -30,7 +30,7 @@ public class DeviceContext : IDisposable
         (uint graphicsQueueIndex, uint presentQueueIndex) = FindPhysicalDeviceQueueFamilies(
             PhysicalDevice
         );
-        LogicalDevice = CreateLogicalDevice(presentQueueIndex, presentQueueIndex);
+        LogicalDevice = CreateLogicalDevice(graphicsQueueIndex, presentQueueIndex);
         GraphicsQueue = new QueueFamily
         {
             Index = graphicsQueueIndex,
