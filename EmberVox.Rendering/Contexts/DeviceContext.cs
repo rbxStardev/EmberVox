@@ -1,5 +1,7 @@
 using EmberVox.Logging;
+using EmberVox.Rendering;
 using Silk.NET.Core.Native;
+using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 
 namespace EmberVox;

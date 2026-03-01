@@ -1,4 +1,6 @@
+using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
+using Silk.NET.Windowing;
 
 namespace EmberVox;
 

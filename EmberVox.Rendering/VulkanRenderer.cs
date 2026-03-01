@@ -1,16 +1,16 @@
-using System.Runtime.InteropServices;
 using EmberVox.Logging;
+using EmberVox.Rendering.Contexts;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
+using Silk.NET.Maths;
+using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
+using Silk.NET.Windowing;
 
-namespace EmberVox;
+namespace EmberVox.Rendering;
 
-public class HelloTriangleApplication : IDisposable
+public class VulkanRenderer : IDisposable
 {
-    private const int WindowWidth = 800;
-    private const int WindowHeight = 600;
-
     private static readonly string[] ValidationLayers = ["VK_LAYER_KHRONOS_validation"];
 
 #if DEBUG
@@ -29,19 +29,9 @@ public class HelloTriangleApplication : IDisposable
     private readonly SurfaceContext _surfaceContext;
     private readonly SwapChainContext _swapChainContext;
 
-    public HelloTriangleApplication()
+    public VulkanRenderer(IWindow window)
     {
-        // Init Window
-
-        WindowOptions options = WindowOptions.DefaultVulkan with
-        {
-            Size = new Vector2D<int>(WindowWidth, WindowHeight),
-            Title = "EmberVox: Vulkan",
-            WindowBorder = WindowBorder.Fixed, // Basically makes it unresizable
-        };
-
-        _window = Window.Create(options);
-        _window.Initialize();
+        _window = window;
 
         // Init Vulkan
 
@@ -83,8 +73,8 @@ public class HelloTriangleApplication : IDisposable
         Logger.Info?.WriteLine("~ Vulkan successfully initialized. ~");
         Console.WriteLine();
 
-        MainLoop();
-        Dispose();
+        // Main loop
+        _window.Run();
     }
 
     private unsafe Instance CreateInstance()
@@ -244,11 +234,6 @@ public class HelloTriangleApplication : IDisposable
         return true;
     }
 
-    private void MainLoop()
-    {
-        _window.Run();
-    }
-
     public void Dispose()
     {
         // DO NOT change the order of disposal, as it's very important!
@@ -266,7 +251,6 @@ public class HelloTriangleApplication : IDisposable
 
         _vk.DestroyInstance(_instance, ReadOnlySpan<AllocationCallbacks>.Empty);
         _vk.Dispose();
-        _window.Dispose();
 
         Logger.Debug?.WriteLine("Application successfully disposed, exiting...");
 

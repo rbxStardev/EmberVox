@@ -1,4 +1,7 @@
-﻿namespace EmberVox;
+﻿using EmberVox.Platform;
+using EmberVox.Rendering;
+
+namespace EmberVox;
 
 public static class Program
 {
@@ -6,7 +9,8 @@ public static class Program
     {
         try
         {
-            HelloTriangleApplication app = new();
+            using WindowContext window = new();
+            using VulkanRenderer vulkanRenderer = new(window.Handle);
         }
         catch (Exception e)
         {

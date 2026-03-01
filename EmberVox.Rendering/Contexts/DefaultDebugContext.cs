@@ -1,8 +1,9 @@
 using System.Runtime.InteropServices;
 using EmberVox.Logging;
+using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 
-namespace EmberVox;
+namespace EmberVox.Rendering.Contexts;
 
 public class DefaultDebugContext : IDisposable
 {

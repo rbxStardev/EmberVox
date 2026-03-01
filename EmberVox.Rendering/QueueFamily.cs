@@ -1,4 +1,6 @@
-namespace EmberVox;
+using Silk.NET.Vulkan;
+
+namespace EmberVox.Rendering;
 
 public struct QueueFamily
 {

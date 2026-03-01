@@ -1,3 +1,6 @@
 <Solution>
-  <Project Path="EmberVox/EmberVox.csproj" />
+  <Project Path="EmberVox.Core/EmberVox.Core.csproj" />
+  <Project Path="EmberVox.Platform/EmberVox.Platform.csproj" />
+  <Project Path="EmberVox.Rendering/EmberVox.Rendering.csproj" />
+  <Project Path="EmberVox.Sandbox/EmberVox.Sandbox.csproj" />
 </Solution>
