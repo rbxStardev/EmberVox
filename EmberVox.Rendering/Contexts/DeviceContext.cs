@@ -181,11 +181,18 @@ public class DeviceContext : IDisposable
                 ExtendedDynamicState = true,
             };
 
+        PhysicalDeviceVulkan11Features physicalDeviceVulkan11Features = new()
+        {
+            SType = StructureType.PhysicalDeviceVulkan11Features,
+            ShaderDrawParameters = Vk.True,
+            PNext = &physicalDeviceExtendedDynamicStateFeaturesExt,
+        };
+
         PhysicalDeviceVulkan13Features physicalDeviceVulkan13Features = new()
         {
             SType = StructureType.PhysicalDeviceVulkan13Features,
             DynamicRendering = true,
-            PNext = &physicalDeviceExtendedDynamicStateFeaturesExt,
+            PNext = &physicalDeviceVulkan11Features,
         };
 
         PhysicalDeviceFeatures2 physicalDeviceFeatures2 = new()

@@ -1,4 +1,5 @@
-﻿using EmberVox.Platform;
+﻿using EmberVox.Logging;
+using EmberVox.Platform;
 using EmberVox.Rendering;
 
 namespace EmberVox;
@@ -14,6 +15,7 @@ public static class Program
         }
         catch (Exception e)
         {
+            Logger.Error?.WriteLine(e.Message);
             Console.WriteLine(e);
             throw;
         }

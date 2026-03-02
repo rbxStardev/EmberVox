@@ -28,6 +28,7 @@ public class VulkanRenderer : IDisposable
     private readonly DeviceContext _deviceContext;
     private readonly SurfaceContext _surfaceContext;
     private readonly SwapChainContext _swapChainContext;
+    private readonly GraphicsPipelineContext _graphicsPipelineContext;
 
     public VulkanRenderer(IWindow window)
     {
@@ -59,7 +60,7 @@ public class VulkanRenderer : IDisposable
         Logger.Debug?.WriteLine("-----> DeviceContext creation: OK <-----");
         Console.WriteLine();
 
-        Logger.Debug?.WriteLine("-----> Creating SwapChain... <-----");
+        Logger.Debug?.WriteLine("-----> Creating SwapChainContext... <-----");
         _swapChainContext = new SwapChainContext(
             _vk,
             _surfaceContext,
@@ -67,10 +68,23 @@ public class VulkanRenderer : IDisposable
             _window,
             _instance
         );
-        Logger.Debug?.WriteLine("-----> SwapChain creation: OK <-----");
+        Logger.Debug?.WriteLine("-----> SwapChainContext creation: OK <-----");
         Console.WriteLine();
 
         Logger.Info?.WriteLine("~ Vulkan successfully initialized. ~");
+        Console.WriteLine();
+
+        Logger.Info?.WriteLine("~ Initializing Graphics Pipeline... ~");
+        Console.WriteLine();
+
+        _graphicsPipelineContext = new GraphicsPipelineContext(
+            _vk,
+            _deviceContext,
+            _swapChainContext
+        );
+        Console.WriteLine();
+
+        Logger.Info?.WriteLine("~ Graphics Pipeline successfully initialized. ~");
         Console.WriteLine();
 
         // Main loop
@@ -244,6 +258,8 @@ public class VulkanRenderer : IDisposable
         {
             _debugContext.Dispose();
         }
+
+        _graphicsPipelineContext.Dispose();
 
         _swapChainContext.Dispose();
         _surfaceContext.Dispose();
