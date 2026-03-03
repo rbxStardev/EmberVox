@@ -28,7 +28,9 @@ public class VulkanRenderer : IDisposable
     private readonly DeviceContext _deviceContext;
     private readonly SurfaceContext _surfaceContext;
     private readonly SwapChainContext _swapChainContext;
+
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
+    private readonly CommandContext _commandContext;
 
     public VulkanRenderer(IWindow window)
     {
@@ -83,6 +85,13 @@ public class VulkanRenderer : IDisposable
             _swapChainContext
         );
         Console.WriteLine();
+
+        _commandContext = new CommandContext(
+            _vk,
+            _deviceContext,
+            _swapChainContext,
+            _graphicsPipelineContext
+        );
 
         Logger.Info?.WriteLine("~ Graphics Pipeline successfully initialized. ~");
         Console.WriteLine();
@@ -259,6 +268,7 @@ public class VulkanRenderer : IDisposable
             _debugContext.Dispose();
         }
 
+        _commandContext.Dispose();
         _graphicsPipelineContext.Dispose();
 
         _swapChainContext.Dispose();

@@ -9,13 +9,14 @@ public class SwapChainContext : IDisposable
     public KhrSwapchain KhrSwapChainExtension { get; }
     public SwapchainKHR SwapChainKhr { get; }
     public ImageView[] SwapChainImageViews { get; }
+    public Image[] SwapChainImages { get; }
+
     public Format SwapChainImageFormat { get; }
     public Extent2D SwapChainExtent { get; }
 
     private readonly SurfaceCapabilitiesKHR _surfaceCapabilities;
     private readonly SurfaceFormatKHR _surfaceFormat;
     private readonly PresentModeKHR _presentMode;
-    private readonly Image[] _images;
 
     private readonly Vk _vk;
     private readonly SurfaceContext _surfaceContext;
@@ -53,7 +54,7 @@ public class SwapChainContext : IDisposable
         SwapChainExtent = GetSwapChainExtent();
         _presentMode = GetSwapChainPresentMode();
         SwapChainKhr = CreateSwapChain();
-        _images = GetSwapChainImages();
+        SwapChainImages = GetSwapChainImages();
         SwapChainImageViews = CreateSwapChainImageViews();
     }
 
@@ -240,7 +241,7 @@ public class SwapChainContext : IDisposable
 
     private unsafe ImageView[] CreateSwapChainImageViews()
     {
-        ImageView[] imageViews = new ImageView[_images.Length];
+        ImageView[] imageViews = new ImageView[SwapChainImages.Length];
 
         ImageViewCreateInfo imageViewCreateInfo = new()
         {
@@ -250,9 +251,9 @@ public class SwapChainContext : IDisposable
             SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, 1, 0, 1),
         };
 
-        for (int i = 0; i < _images.Length; i++)
+        for (int i = 0; i < SwapChainImages.Length; i++)
         {
-            imageViewCreateInfo.Image = _images[i];
+            imageViewCreateInfo.Image = SwapChainImages[i];
 
             if (
                 _vk.CreateImageView(
