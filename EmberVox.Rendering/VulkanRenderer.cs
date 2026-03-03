@@ -6,6 +6,7 @@ using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 using Silk.NET.Windowing;
+using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering;
 
@@ -31,6 +32,7 @@ public class VulkanRenderer : IDisposable
 
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
     private readonly CommandContext _commandContext;
+    private readonly SyncContext _syncContext;
 
     public VulkanRenderer(IWindow window)
     {
@@ -93,11 +95,85 @@ public class VulkanRenderer : IDisposable
             _graphicsPipelineContext
         );
 
+        _syncContext = new SyncContext(_vk, _deviceContext);
+
         Logger.Info?.WriteLine("~ Graphics Pipeline successfully initialized. ~");
         Console.WriteLine();
+    }
 
-        // Main loop
+    public void MainLoop()
+    {
+        _window.Render += WindowOnRender;
+
         _window.Run();
+
+        var waitIdleResult = _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
+    }
+
+    private unsafe void WindowOnRender(double deltaTime)
+    {
+        Semaphore presentCompleteSemaphore = _syncContext.PresentCompleteSemaphore;
+        Semaphore renderFinishedSemaphore = _syncContext.RenderFinishedSemaphore;
+        Fence drawFence = _syncContext.DrawFence;
+
+        CommandBuffer commandBuffer = _commandContext.CommandBuffer;
+        SwapchainKHR swapchain = _swapChainContext.SwapChainKhr;
+
+        _vk.WaitForFences(
+            _deviceContext.LogicalDevice,
+            new ReadOnlySpan<Fence>(ref drawFence),
+            true,
+            ulong.MaxValue
+        );
+
+        uint imageIndex = 0;
+        _swapChainContext.KhrSwapChainExtension.AcquireNextImage(
+            _deviceContext.LogicalDevice,
+            _swapChainContext.SwapChainKhr,
+            ulong.MaxValue,
+            _syncContext.PresentCompleteSemaphore,
+            default,
+            ref imageIndex
+        );
+
+        _commandContext.RecordCommandBuffer(imageIndex);
+
+        _vk.ResetFences(_deviceContext.LogicalDevice, new ReadOnlySpan<Fence>(ref drawFence));
+
+        PipelineStageFlags waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
+
+        SubmitInfo submitInfo = new()
+        {
+            SType = StructureType.SubmitInfo,
+            WaitSemaphoreCount = 1,
+            PWaitSemaphores = &presentCompleteSemaphore,
+            PWaitDstStageMask = &waitDestinationStageMask,
+            CommandBufferCount = 1,
+            PCommandBuffers = &commandBuffer,
+            SignalSemaphoreCount = 1,
+            PSignalSemaphores = &renderFinishedSemaphore,
+        };
+
+        _vk.QueueSubmit(
+            _deviceContext.GraphicsQueue.Queue,
+            new ReadOnlySpan<SubmitInfo>(ref submitInfo),
+            drawFence
+        );
+
+        PresentInfoKHR presentInfoKhr = new()
+        {
+            SType = StructureType.PresentInfoKhr,
+            WaitSemaphoreCount = 1,
+            PWaitSemaphores = &renderFinishedSemaphore,
+            SwapchainCount = 1,
+            PSwapchains = &swapchain,
+            PImageIndices = &imageIndex,
+        };
+
+        _swapChainContext.KhrSwapChainExtension.QueuePresent(
+            _deviceContext.PresentQueue.Queue,
+            ref presentInfoKhr
+        );
     }
 
     private unsafe Instance CreateInstance()
@@ -268,6 +344,7 @@ public class VulkanRenderer : IDisposable
             _debugContext.Dispose();
         }
 
+        _syncContext.Dispose();
         _commandContext.Dispose();
         _graphicsPipelineContext.Dispose();
 

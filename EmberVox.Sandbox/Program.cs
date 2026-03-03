@@ -2,7 +2,7 @@
 using EmberVox.Platform;
 using EmberVox.Rendering;
 
-namespace EmberVox;
+namespace EmberVox.Sandbox;
 
 public static class Program
 {
@@ -12,6 +12,8 @@ public static class Program
         {
             using WindowContext window = new();
             using VulkanRenderer vulkanRenderer = new(window.Handle);
+
+            vulkanRenderer.MainLoop();
         }
         catch (Exception e)
         {
