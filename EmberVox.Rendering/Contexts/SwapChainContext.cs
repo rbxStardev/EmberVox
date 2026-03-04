@@ -69,6 +69,14 @@ internal sealed class SwapChainContext : IDisposable
 
     public void RecreateSwapChain()
     {
+        SwapchainKHR oldSwapChain = SwapChainKhr;
+
+        _surfaceCapabilities = GetSurfaceCapabilities();
+
+        SwapChainExtent = GetSwapChainExtent();
+
+        SwapChainKhr = CreateSwapChain(oldSwapChain);
+
         foreach (ImageView imageView in SwapChainImageViews)
         {
             _vk.DestroyImageView(
@@ -79,19 +87,15 @@ internal sealed class SwapChainContext : IDisposable
         }
         KhrSwapChainExtension.DestroySwapchain(
             _deviceContext.LogicalDevice,
-            SwapChainKhr,
+            oldSwapChain,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
 
-        _surfaceCapabilities = GetSurfaceCapabilities();
-
-        SwapChainExtent = GetSwapChainExtent();
-        SwapChainKhr = CreateSwapChain();
         SwapChainImages = GetSwapChainImages();
         SwapChainImageViews = CreateSwapChainImageViews();
     }
 
-    private unsafe SwapchainKHR CreateSwapChain()
+    private unsafe SwapchainKHR CreateSwapChain(SwapchainKHR oldSwapChain = default)
     {
         Span<uint> imageCount = stackalloc uint[1];
         imageCount[0] = _surfaceCapabilities.MaxImageCount + 1;
@@ -117,7 +121,7 @@ internal sealed class SwapChainContext : IDisposable
             CompositeAlpha = CompositeAlphaFlagsKHR.OpaqueBitKhr,
             PresentMode = _presentMode,
             Clipped = true,
-            OldSwapchain = default, // gives an error randomly IDK why, DO NOT TOUCH
+            OldSwapchain = oldSwapChain,
         };
 
         uint* queueFamilyIndices = stackalloc[] {
