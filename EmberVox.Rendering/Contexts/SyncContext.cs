@@ -1,25 +1,52 @@
+using System.Diagnostics;
 using Silk.NET.Vulkan;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering.Contexts;
 
-public class SyncContext : IDisposable
+internal sealed class SyncContext : IDisposable
 {
-    public Semaphore PresentCompleteSemaphore { get; }
-    public Semaphore RenderFinishedSemaphore { get; }
-    public Fence DrawFence { get; }
+    public Semaphore[] PresentCompleteSemaphores { get; private set; }
+    public Semaphore[] RenderFinishedSemaphores { get; private set; }
+    public Fence[] InFlightFences { get; private set; }
 
     private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
+    private readonly SwapChainContext _swapChainContext;
+    private readonly uint _maxFramesInFlight;
 
-    public SyncContext(Vk vk, DeviceContext deviceContext)
+    public SyncContext(
+        Vk vk,
+        DeviceContext deviceContext,
+        SwapChainContext swapChainContext,
+        uint maxFramesInFlight
+    )
     {
         _vk = vk;
         _deviceContext = deviceContext;
+        _swapChainContext = swapChainContext;
 
-        PresentCompleteSemaphore = CreateSemaphore();
-        RenderFinishedSemaphore = CreateSemaphore();
-        DrawFence = CreateFence();
+        _maxFramesInFlight = maxFramesInFlight;
+
+        PresentCompleteSemaphores = new Semaphore[_maxFramesInFlight];
+        RenderFinishedSemaphores = new Semaphore[_swapChainContext.SwapChainImages.Length];
+        InFlightFences = new Fence[_maxFramesInFlight];
+
+        CreateSyncObjects();
+    }
+
+    private void CreateSyncObjects()
+    {
+        for (int i = 0; i < _swapChainContext.SwapChainImages.Length; i++)
+        {
+            RenderFinishedSemaphores[i] = CreateSemaphore();
+        }
+
+        for (uint i = 0; i < _maxFramesInFlight; i++)
+        {
+            PresentCompleteSemaphores[i] = CreateSemaphore();
+            InFlightFences[i] = CreateFence();
+        }
     }
 
     public Semaphore CreateSemaphore()
@@ -68,21 +95,24 @@ public class SyncContext : IDisposable
 
     public void Dispose()
     {
-        _vk.DestroyFence(
-            _deviceContext.LogicalDevice,
-            DrawFence,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
-        _vk.DestroySemaphore(
-            _deviceContext.LogicalDevice,
-            RenderFinishedSemaphore,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
-        _vk.DestroySemaphore(
-            _deviceContext.LogicalDevice,
-            PresentCompleteSemaphore,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
+        foreach (Fence fence in InFlightFences)
+            _vk.DestroyFence(
+                _deviceContext.LogicalDevice,
+                fence,
+                ReadOnlySpan<AllocationCallbacks>.Empty
+            );
+        foreach (Semaphore semaphore in RenderFinishedSemaphores)
+            _vk.DestroySemaphore(
+                _deviceContext.LogicalDevice,
+                semaphore,
+                ReadOnlySpan<AllocationCallbacks>.Empty
+            );
+        foreach (Semaphore semaphore in PresentCompleteSemaphores)
+            _vk.DestroySemaphore(
+                _deviceContext.LogicalDevice,
+                semaphore,
+                ReadOnlySpan<AllocationCallbacks>.Empty
+            );
 
         GC.SuppressFinalize(this);
     }

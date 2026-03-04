@@ -4,7 +4,7 @@ using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
-public class GraphicsPipelineContext : IDisposable
+internal sealed class GraphicsPipelineContext : IDisposable
 {
     public Pipeline GraphicsPipeline { get; }
 

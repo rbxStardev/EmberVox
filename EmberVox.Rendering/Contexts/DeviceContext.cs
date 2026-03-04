@@ -6,7 +6,7 @@ using Silk.NET.Vulkan.Extensions.KHR;
 
 namespace EmberVox;
 
-public class DeviceContext : IDisposable
+internal sealed class DeviceContext : IDisposable
 {
     public PhysicalDevice PhysicalDevice { get; }
 
@@ -192,6 +192,7 @@ public class DeviceContext : IDisposable
         {
             SType = StructureType.PhysicalDeviceVulkan13Features,
             DynamicRendering = true,
+            Synchronization2 = true,
             PNext = &physicalDeviceVulkan11Features,
         };
 

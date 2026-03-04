@@ -2,7 +2,6 @@ using EmberVox.Logging;
 using EmberVox.Rendering.Contexts;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
-using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 using Silk.NET.Windowing;
@@ -10,10 +9,10 @@ using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering;
 
-public class VulkanRenderer : IDisposable
+public sealed class VulkanRenderer : IDisposable
 {
     private static readonly string[] ValidationLayers = ["VK_LAYER_KHRONOS_validation"];
-
+    private const int MaxFramesInFlight = 2;
 #if DEBUG
     private const bool EnableValidationLayers = true;
 #else
@@ -33,6 +32,8 @@ public class VulkanRenderer : IDisposable
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
     private readonly CommandContext _commandContext;
     private readonly SyncContext _syncContext;
+
+    private int _frameIndex = 0;
 
     public VulkanRenderer(IWindow window)
     {
@@ -92,10 +93,11 @@ public class VulkanRenderer : IDisposable
             _vk,
             _deviceContext,
             _swapChainContext,
-            _graphicsPipelineContext
+            _graphicsPipelineContext,
+            MaxFramesInFlight
         );
 
-        _syncContext = new SyncContext(_vk, _deviceContext);
+        _syncContext = new SyncContext(_vk, _deviceContext, _swapChainContext, MaxFramesInFlight);
 
         Logger.Info?.WriteLine("~ Graphics Pipeline successfully initialized. ~");
         Console.WriteLine();
@@ -107,38 +109,45 @@ public class VulkanRenderer : IDisposable
 
         _window.Run();
 
-        var waitIdleResult = _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
+        _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
     }
 
     private unsafe void WindowOnRender(double deltaTime)
     {
-        Semaphore presentCompleteSemaphore = _syncContext.PresentCompleteSemaphore;
-        Semaphore renderFinishedSemaphore = _syncContext.RenderFinishedSemaphore;
-        Fence drawFence = _syncContext.DrawFence;
+        Semaphore presentCompleteSemaphore = _syncContext.PresentCompleteSemaphores[_frameIndex];
+        Fence drawFence = _syncContext.InFlightFences[_frameIndex];
 
-        CommandBuffer commandBuffer = _commandContext.CommandBuffer;
+        CommandBuffer commandBuffer = _commandContext.CommandBuffers[_frameIndex];
         SwapchainKHR swapchain = _swapChainContext.SwapChainKhr;
 
-        _vk.WaitForFences(
-            _deviceContext.LogicalDevice,
-            new ReadOnlySpan<Fence>(ref drawFence),
-            true,
-            ulong.MaxValue
-        );
+        if (
+            _vk.WaitForFences(
+                _deviceContext.LogicalDevice,
+                new ReadOnlySpan<Fence>(ref drawFence),
+                true,
+                ulong.MaxValue
+            ) != Result.Success
+        )
+        {
+            throw new Exception("Failed to wait for fence!");
+        }
 
         uint imageIndex = 0;
         _swapChainContext.KhrSwapChainExtension.AcquireNextImage(
             _deviceContext.LogicalDevice,
             _swapChainContext.SwapChainKhr,
             ulong.MaxValue,
-            _syncContext.PresentCompleteSemaphore,
+            presentCompleteSemaphore,
             default,
             ref imageIndex
         );
 
-        _commandContext.RecordCommandBuffer(imageIndex);
+        Semaphore renderFinishedSemaphore = _syncContext.RenderFinishedSemaphores[imageIndex];
 
         _vk.ResetFences(_deviceContext.LogicalDevice, new ReadOnlySpan<Fence>(ref drawFence));
+
+        _vk.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None);
+        _commandContext.RecordCommandBuffer(imageIndex, _frameIndex);
 
         PipelineStageFlags waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
 
@@ -174,6 +183,8 @@ public class VulkanRenderer : IDisposable
             _deviceContext.PresentQueue.Queue,
             ref presentInfoKhr
         );
+
+        _frameIndex = (_frameIndex + 1) % MaxFramesInFlight;
     }
 
     private unsafe Instance CreateInstance()

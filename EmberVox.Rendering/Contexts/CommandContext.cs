@@ -2,41 +2,71 @@ using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
-public class CommandContext : IDisposable
+internal sealed class CommandContext : IDisposable
 {
     public CommandPool CommandPool { get; }
-    public CommandBuffer CommandBuffer { get; }
+    public CommandBuffer[] CommandBuffers { get; private set; }
 
     private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
+    private readonly uint _maxFramesInFlight;
 
     public CommandContext(
         Vk vk,
         DeviceContext deviceContext,
         SwapChainContext swapChainContext,
-        GraphicsPipelineContext graphicsPipelineContext
+        GraphicsPipelineContext graphicsPipelineContext,
+        uint maxFramesInFlight
     )
     {
         _vk = vk;
         _deviceContext = deviceContext;
         _swapChainContext = swapChainContext;
         _graphicsPipelineContext = graphicsPipelineContext;
+        _maxFramesInFlight = maxFramesInFlight;
 
         CommandPool = CreateCommandPool();
-        CommandBuffer = CreateCommandBuffer();
+        CommandBuffers = new CommandBuffer[_maxFramesInFlight];
+
+        CreateCommandBuffers();
     }
 
-    public unsafe void RecordCommandBuffer(uint imageIndex)
+    private void CreateCommandBuffers()
     {
+        CommandBufferAllocateInfo allocInfo = new()
+        {
+            SType = StructureType.CommandBufferAllocateInfo,
+            CommandPool = CommandPool,
+            Level = CommandBufferLevel.Primary,
+            CommandBufferCount = _maxFramesInFlight,
+        };
+
+        if (
+            _vk.AllocateCommandBuffers(
+                _deviceContext.LogicalDevice,
+                new ReadOnlySpan<CommandBufferAllocateInfo>(ref allocInfo),
+                new Span<CommandBuffer>(CommandBuffers)
+            ) != Result.Success
+        )
+        {
+            throw new Exception("Failed to allocate command buffers");
+        }
+    }
+
+    public unsafe void RecordCommandBuffer(uint imageIndex, int currentFrame)
+    {
+        CommandBuffer commandBuffer = CommandBuffers[currentFrame];
+
         CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
         _vk.BeginCommandBuffer(
-            CommandBuffer,
+            commandBuffer,
             new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
         );
 
         TransitionImageLayout(
+            commandBuffer,
             imageIndex,
             ImageLayout.Undefined,
             ImageLayout.ColorAttachmentOptimal,
@@ -70,10 +100,10 @@ public class CommandContext : IDisposable
             PColorAttachments = &attachmentInfo,
         };
 
-        _vk.CmdBeginRendering(CommandBuffer, new ReadOnlySpan<RenderingInfo>(ref renderingInfo));
+        _vk.CmdBeginRendering(commandBuffer, new ReadOnlySpan<RenderingInfo>(ref renderingInfo));
 
         _vk.CmdBindPipeline(
-            CommandBuffer,
+            commandBuffer,
             PipelineBindPoint.Graphics,
             _graphicsPipelineContext.GraphicsPipeline
         );
@@ -86,16 +116,17 @@ public class CommandContext : IDisposable
             0.0f,
             1.0f
         );
-        _vk.CmdSetViewport(CommandBuffer, 0, new ReadOnlySpan<Viewport>(ref viewport));
+        _vk.CmdSetViewport(commandBuffer, 0, new ReadOnlySpan<Viewport>(ref viewport));
 
         Rect2D scissor = new Rect2D(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
-        _vk.CmdSetScissor(CommandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
+        _vk.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
 
-        _vk.CmdDraw(CommandBuffer, 3, 1, 0, 0);
+        _vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
 
-        _vk.CmdEndRendering(CommandBuffer);
+        _vk.CmdEndRendering(commandBuffer);
 
         TransitionImageLayout(
+            commandBuffer,
             imageIndex,
             ImageLayout.ColorAttachmentOptimal,
             ImageLayout.PresentSrcKhr,
@@ -105,10 +136,11 @@ public class CommandContext : IDisposable
             PipelineStageFlags2.BottomOfPipeBit
         );
 
-        _vk.EndCommandBuffer(CommandBuffer);
+        _vk.EndCommandBuffer(commandBuffer);
     }
 
     private unsafe void TransitionImageLayout(
+        CommandBuffer commandBuffer,
         uint imageIndex,
         ImageLayout oldLayout,
         ImageLayout newLayout,
@@ -148,7 +180,7 @@ public class CommandContext : IDisposable
         };
 
         _vk.CmdPipelineBarrier2(
-            CommandBuffer,
+            commandBuffer,
             new ReadOnlySpan<DependencyInfo>(ref dependencyInfo)
         );
     }
@@ -176,31 +208,6 @@ public class CommandContext : IDisposable
         }
 
         return commandPool;
-    }
-
-    private CommandBuffer CreateCommandBuffer()
-    {
-        CommandBufferAllocateInfo allocInfo = new()
-        {
-            SType = StructureType.CommandBufferAllocateInfo,
-            CommandPool = CommandPool,
-            Level = CommandBufferLevel.Primary,
-            CommandBufferCount = 1,
-        };
-
-        CommandBuffer commandBuffer = default;
-        if (
-            _vk.AllocateCommandBuffers(
-                _deviceContext.LogicalDevice,
-                new ReadOnlySpan<CommandBufferAllocateInfo>(ref allocInfo),
-                new Span<CommandBuffer>(ref commandBuffer)
-            ) != Result.Success
-        )
-        {
-            throw new Exception("Failed to create command buffer");
-        }
-
-        return commandBuffer;
     }
 
     public void Dispose()

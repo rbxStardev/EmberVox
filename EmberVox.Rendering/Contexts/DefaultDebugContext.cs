@@ -5,7 +5,7 @@ using Silk.NET.Vulkan.Extensions.EXT;
 
 namespace EmberVox.Rendering.Contexts;
 
-public class DefaultDebugContext : IDisposable
+internal sealed class DefaultDebugContext : IDisposable
 {
     public ExtDebugUtils DebugUtilsExtension { get; }
     public DebugUtilsMessengerEXT DebugMessenger { get; }

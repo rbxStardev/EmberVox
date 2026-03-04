@@ -4,7 +4,7 @@ using Silk.NET.Windowing;
 
 namespace EmberVox;
 
-public class SwapChainContext : IDisposable
+internal sealed class SwapChainContext : IDisposable
 {
     public KhrSwapchain KhrSwapChainExtension { get; }
     public SwapchainKHR SwapChainKhr { get; }

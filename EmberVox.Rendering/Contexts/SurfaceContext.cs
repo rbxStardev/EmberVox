@@ -4,7 +4,7 @@ using Silk.NET.Windowing;
 
 namespace EmberVox;
 
-public class SurfaceContext : IDisposable
+internal sealed class SurfaceContext : IDisposable
 {
     public KhrSurface KhrSurfaceExtension { get; }
     public SurfaceKHR SurfaceKhr { get; }
