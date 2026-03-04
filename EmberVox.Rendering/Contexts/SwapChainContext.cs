@@ -1,3 +1,4 @@
+using EmberVox.Logging;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
@@ -7,14 +8,14 @@ namespace EmberVox;
 internal sealed class SwapChainContext : IDisposable
 {
     public KhrSwapchain KhrSwapChainExtension { get; }
-    public SwapchainKHR SwapChainKhr { get; }
-    public ImageView[] SwapChainImageViews { get; }
-    public Image[] SwapChainImages { get; }
+    public SwapchainKHR SwapChainKhr { get; private set; }
+    public ImageView[] SwapChainImageViews { get; private set; }
+    public Image[] SwapChainImages { get; private set; }
 
     public Format SwapChainImageFormat { get; }
-    public Extent2D SwapChainExtent { get; }
+    public Extent2D SwapChainExtent { get; private set; }
 
-    private readonly SurfaceCapabilitiesKHR _surfaceCapabilities;
+    private SurfaceCapabilitiesKHR _surfaceCapabilities;
     private readonly SurfaceFormatKHR _surfaceFormat;
     private readonly PresentModeKHR _presentMode;
 
@@ -53,6 +54,38 @@ internal sealed class SwapChainContext : IDisposable
         SwapChainImageFormat = _surfaceFormat.Format;
         SwapChainExtent = GetSwapChainExtent();
         _presentMode = GetSwapChainPresentMode();
+        SwapChainKhr = CreateSwapChain();
+        SwapChainImages = GetSwapChainImages();
+        SwapChainImageViews = CreateSwapChainImageViews();
+
+        Logger.Metric?.WriteLine($"SwapChain Image Format: {SwapChainImageFormat.ToString()}");
+        Logger.Metric?.WriteLine(
+            $"SwapChain Extent: (x:{SwapChainExtent.Width}, y:{SwapChainExtent.Height})"
+        );
+        Logger.Metric?.WriteLine($"SwapChain Present Mode: {_presentMode.ToString()}");
+        Logger.Metric?.WriteLine($"SwapChain Images: {SwapChainImages.Length}");
+        Logger.Metric?.WriteLine($"SwapChain Image Views: {SwapChainImageViews.Length}");
+    }
+
+    public void RecreateSwapChain()
+    {
+        foreach (ImageView imageView in SwapChainImageViews)
+        {
+            _vk.DestroyImageView(
+                _deviceContext.LogicalDevice,
+                imageView,
+                ReadOnlySpan<AllocationCallbacks>.Empty
+            );
+        }
+        KhrSwapChainExtension.DestroySwapchain(
+            _deviceContext.LogicalDevice,
+            SwapChainKhr,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+
+        _surfaceCapabilities = GetSurfaceCapabilities();
+
+        SwapChainExtent = GetSwapChainExtent();
         SwapChainKhr = CreateSwapChain();
         SwapChainImages = GetSwapChainImages();
         SwapChainImageViews = CreateSwapChainImageViews();

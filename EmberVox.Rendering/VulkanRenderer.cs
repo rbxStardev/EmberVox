@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using EmberVox.Logging;
 using EmberVox.Rendering.Contexts;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
+using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 using Silk.NET.Windowing;
@@ -34,6 +36,7 @@ public sealed class VulkanRenderer : IDisposable
     private readonly SyncContext _syncContext;
 
     private int _frameIndex = 0;
+    private bool _frameBufferResized = false;
 
     public VulkanRenderer(IWindow window)
     {
@@ -106,14 +109,23 @@ public sealed class VulkanRenderer : IDisposable
     public void MainLoop()
     {
         _window.Render += WindowOnRender;
+        _window.FramebufferResize += WindowOnFramebufferResize;
 
         _window.Run();
 
         _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
     }
 
+    private void WindowOnFramebufferResize(Vector2D<int> newSize)
+    {
+        _frameBufferResized = true;
+    }
+
     private unsafe void WindowOnRender(double deltaTime)
     {
+        int fps = (int)(1.0 / deltaTime);
+        _window.Title = $"EmberVox: Vulkan - {fps} FPS";
+
         Semaphore presentCompleteSemaphore = _syncContext.PresentCompleteSemaphores[_frameIndex];
         Fence drawFence = _syncContext.InFlightFences[_frameIndex];
 
@@ -133,7 +145,7 @@ public sealed class VulkanRenderer : IDisposable
         }
 
         uint imageIndex = 0;
-        _swapChainContext.KhrSwapChainExtension.AcquireNextImage(
+        Result result = _swapChainContext.KhrSwapChainExtension.AcquireNextImage(
             _deviceContext.LogicalDevice,
             _swapChainContext.SwapChainKhr,
             ulong.MaxValue,
@@ -141,6 +153,17 @@ public sealed class VulkanRenderer : IDisposable
             default,
             ref imageIndex
         );
+        if (result == Result.ErrorOutOfDateKhr)
+        {
+            RecreateSwapChain();
+            return;
+        }
+
+        if (result != Result.Success && result != Result.SuboptimalKhr)
+        {
+            Debug.Assert(result is Result.Timeout or Result.NotReady);
+            throw new Exception("Failed to acquire swap chain image!");
+        }
 
         Semaphore renderFinishedSemaphore = _syncContext.RenderFinishedSemaphores[imageIndex];
 
@@ -179,12 +202,37 @@ public sealed class VulkanRenderer : IDisposable
             PImageIndices = &imageIndex,
         };
 
-        _swapChainContext.KhrSwapChainExtension.QueuePresent(
+        result = _swapChainContext.KhrSwapChainExtension.QueuePresent(
             _deviceContext.PresentQueue.Queue,
             ref presentInfoKhr
         );
+        if (
+            result == Result.ErrorOutOfDateKhr
+            || result == Result.SuboptimalKhr
+            || _frameBufferResized
+        )
+        {
+            _frameBufferResized = false;
+            RecreateSwapChain();
+        }
+        else
+        {
+            Debug.Assert(result == Result.Success);
+        }
 
         _frameIndex = (_frameIndex + 1) % MaxFramesInFlight;
+    }
+
+    private void RecreateSwapChain()
+    {
+        while (_window.FramebufferSize.X == 0 || _window.FramebufferSize.Y == 0)
+        {
+            _window.DoEvents();
+        }
+
+        _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
+
+        _swapChainContext.RecreateSwapChain();
     }
 
     private unsafe Instance CreateInstance()

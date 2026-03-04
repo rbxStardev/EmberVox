@@ -7,8 +7,8 @@ public class WindowContext : IDisposable
 {
     public IWindow Handle { get; }
 
-    private const int WindowWidth = 800;
-    private const int WindowHeight = 600;
+    private const int WindowWidth = 1280;
+    private const int WindowHeight = 720;
 
     public WindowContext()
     {
@@ -16,10 +16,10 @@ public class WindowContext : IDisposable
         {
             Size = new Vector2D<int>(WindowWidth, WindowHeight),
             Title = "EmberVox: Vulkan",
-            WindowBorder = WindowBorder.Fixed, // Basically makes it unresizable
+            FramesPerSecond = 144,
         };
 
-        Handle = Silk.NET.Windowing.Window.Create(options);
+        Handle = Window.Create(options);
         Handle.Initialize();
     }
 
