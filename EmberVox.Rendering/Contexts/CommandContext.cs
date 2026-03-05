@@ -1,4 +1,5 @@
 using Silk.NET.Vulkan;
+using Buffer = Silk.NET.Vulkan.Buffer;
 
 namespace EmberVox.Rendering.Contexts;
 
@@ -55,7 +56,11 @@ internal sealed class CommandContext : IDisposable
         }
     }
 
-    public unsafe void RecordCommandBuffer(uint imageIndex, int currentFrame)
+    public unsafe void RecordCommandBuffer(
+        uint imageIndex,
+        int currentFrame,
+        VertexBuffer vertexBuffer
+    )
     {
         CommandBuffer commandBuffer = CommandBuffers[currentFrame];
 
@@ -76,7 +81,7 @@ internal sealed class CommandContext : IDisposable
             PipelineStageFlags2.ColorAttachmentOutputBit
         );
 
-        ClearValue clearColor = new ClearValue(new ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
+        ClearValue clearColor = new(new ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
         RenderingAttachmentInfo attachmentInfo = new()
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -90,7 +95,7 @@ internal sealed class CommandContext : IDisposable
         RenderingInfo renderingInfo = new()
         {
             SType = StructureType.RenderingInfo,
-            RenderArea = new Rect2D
+            RenderArea = new Rect2D()
             {
                 Offset = new Offset2D(0, 0),
                 Extent = _swapChainContext.SwapChainExtent,
@@ -108,7 +113,15 @@ internal sealed class CommandContext : IDisposable
             _graphicsPipelineContext.GraphicsPipeline
         );
 
-        Viewport viewport = new Viewport(
+        Buffer buffer = vertexBuffer.Buffer;
+        _vk.CmdBindVertexBuffers(
+            commandBuffer,
+            0,
+            new ReadOnlySpan<Buffer>(ref buffer),
+            new ReadOnlySpan<ulong>([0])
+        );
+
+        Viewport viewport = new(
             0.0f,
             0.0f,
             _swapChainContext.SwapChainExtent.Width,
@@ -118,7 +131,7 @@ internal sealed class CommandContext : IDisposable
         );
         _vk.CmdSetViewport(commandBuffer, 0, new ReadOnlySpan<Viewport>(ref viewport));
 
-        Rect2D scissor = new Rect2D(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
+        Rect2D scissor = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
         _vk.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
 
         _vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -162,7 +175,7 @@ internal sealed class CommandContext : IDisposable
             SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
             DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
             Image = _swapChainContext.SwapChainImages[imageIndex],
-            SubresourceRange = new ImageSubresourceRange
+            SubresourceRange = new ImageSubresourceRange()
             {
                 AspectMask = ImageAspectFlags.ColorBit,
                 BaseMipLevel = 0,

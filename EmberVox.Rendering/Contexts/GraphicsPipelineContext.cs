@@ -30,14 +30,14 @@ internal sealed class GraphicsPipelineContext : IDisposable
         ShaderModule shaderModule = CreateShaderModule(shaderCode);
         Logger.Metric?.WriteLine($"Created shader module of size: {shaderCode.Length} bytes");
 
-        PipelineShaderStageCreateInfo vertShaderStageInfo = new PipelineShaderStageCreateInfo
+        PipelineShaderStageCreateInfo vertShaderStageInfo = new()
         {
             SType = StructureType.PipelineShaderStageCreateInfo,
             Stage = ShaderStageFlags.VertexBit,
             Module = shaderModule,
             PName = (byte*)SilkMarshal.StringToPtr("vertMain"),
         };
-        PipelineShaderStageCreateInfo fragShaderStageInfo = new PipelineShaderStageCreateInfo
+        PipelineShaderStageCreateInfo fragShaderStageInfo = new()
         {
             SType = StructureType.PipelineShaderStageCreateInfo,
             Stage = ShaderStageFlags.FragmentBit,
@@ -56,7 +56,7 @@ internal sealed class GraphicsPipelineContext : IDisposable
 
     private unsafe PipelineLayout CreatePipelineLayout()
     {
-        PipelineLayoutCreateInfo pipelineLayoutInfo = new PipelineLayoutCreateInfo
+        PipelineLayoutCreateInfo pipelineLayoutInfo = new()
         {
             SType = StructureType.PipelineLayoutCreateInfo,
             SetLayoutCount = 0,
@@ -84,46 +84,52 @@ internal sealed class GraphicsPipelineContext : IDisposable
         DynamicState[] dynamicStates = [DynamicState.Viewport, DynamicState.Scissor];
         fixed (DynamicState* pDynamicStates = dynamicStates)
         {
-            PipelineDynamicStateCreateInfo dynamicState = new PipelineDynamicStateCreateInfo
+            PipelineDynamicStateCreateInfo dynamicState = new()
             {
                 SType = StructureType.PipelineDynamicStateCreateInfo,
                 DynamicStateCount = (uint)dynamicStates.Length,
                 PDynamicStates = pDynamicStates,
             };
 
-            PipelineVertexInputStateCreateInfo vertexInputInfo =
-                new PipelineVertexInputStateCreateInfo
+            VertexInputBindingDescription bindingDescription = Vertex.GetBindingDescription();
+            VertexInputAttributeDescription[] attributeDescriptions =
+                Vertex.GetAttributeDescriptions();
+            fixed (VertexInputAttributeDescription* pAttributeDescriptions = attributeDescriptions)
+            {
+                PipelineVertexInputStateCreateInfo vertexInputInfo = new()
                 {
                     SType = StructureType.PipelineVertexInputStateCreateInfo,
+                    VertexBindingDescriptionCount = 1,
+                    PVertexBindingDescriptions = &bindingDescription,
+                    VertexAttributeDescriptionCount = (uint)attributeDescriptions.Length,
+                    PVertexAttributeDescriptions = pAttributeDescriptions,
                 };
 
-            PipelineInputAssemblyStateCreateInfo inputAssembly =
-                new PipelineInputAssemblyStateCreateInfo
+                PipelineInputAssemblyStateCreateInfo inputAssembly = new()
                 {
                     SType = StructureType.PipelineInputAssemblyStateCreateInfo,
                     Topology = PrimitiveTopology.TriangleList,
                 };
 
-            Viewport viewport = new Viewport(
-                0.0f,
-                0.0f,
-                _swapChainContext.SwapChainExtent.Width,
-                _swapChainContext.SwapChainExtent.Height,
-                0.0f,
-                1.0f
-            );
+                Viewport viewport = new(
+                    0.0f,
+                    0.0f,
+                    _swapChainContext.SwapChainExtent.Width,
+                    _swapChainContext.SwapChainExtent.Height,
+                    0.0f,
+                    1.0f
+                );
 
-            Rect2D rect2D = new Rect2D(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
+                Rect2D rect2D = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
 
-            PipelineViewportStateCreateInfo viewportState = new PipelineViewportStateCreateInfo
-            {
-                SType = StructureType.PipelineViewportStateCreateInfo,
-                ViewportCount = 1,
-                ScissorCount = 1,
-            };
+                PipelineViewportStateCreateInfo viewportState = new()
+                {
+                    SType = StructureType.PipelineViewportStateCreateInfo,
+                    ViewportCount = 1,
+                    ScissorCount = 1,
+                };
 
-            PipelineRasterizationStateCreateInfo rasterizer =
-                new PipelineRasterizationStateCreateInfo
+                PipelineRasterizationStateCreateInfo rasterizer = new()
                 {
                     SType = StructureType.PipelineRasterizationStateCreateInfo,
                     DepthClampEnable = Vk.False,
@@ -136,16 +142,14 @@ internal sealed class GraphicsPipelineContext : IDisposable
                     LineWidth = 1.0f,
                 };
 
-            PipelineMultisampleStateCreateInfo multisampling =
-                new PipelineMultisampleStateCreateInfo
+                PipelineMultisampleStateCreateInfo multisampling = new()
                 {
                     SType = StructureType.PipelineMultisampleStateCreateInfo,
                     RasterizationSamples = SampleCountFlags.Count1Bit,
                     SampleShadingEnable = Vk.False,
                 };
 
-            PipelineColorBlendAttachmentState colorBlendAttachment =
-                new PipelineColorBlendAttachmentState
+                PipelineColorBlendAttachmentState colorBlendAttachment = new()
                 {
                     BlendEnable = Vk.False,
                     ColorWriteMask =
@@ -154,66 +158,66 @@ internal sealed class GraphicsPipelineContext : IDisposable
                         | ColorComponentFlags.BBit
                         | ColorComponentFlags.ABit,
                 };
-            colorBlendAttachment.BlendEnable = Vk.True;
-            colorBlendAttachment.SrcColorBlendFactor = BlendFactor.SrcAlpha;
-            colorBlendAttachment.DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha;
-            colorBlendAttachment.ColorBlendOp = BlendOp.Add;
-            colorBlendAttachment.SrcAlphaBlendFactor = BlendFactor.One;
-            colorBlendAttachment.DstAlphaBlendFactor = BlendFactor.Zero;
-            colorBlendAttachment.AlphaBlendOp = BlendOp.Add;
+                colorBlendAttachment.BlendEnable = Vk.True;
+                colorBlendAttachment.SrcColorBlendFactor = BlendFactor.SrcAlpha;
+                colorBlendAttachment.DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha;
+                colorBlendAttachment.ColorBlendOp = BlendOp.Add;
+                colorBlendAttachment.SrcAlphaBlendFactor = BlendFactor.One;
+                colorBlendAttachment.DstAlphaBlendFactor = BlendFactor.Zero;
+                colorBlendAttachment.AlphaBlendOp = BlendOp.Add;
 
-            PipelineColorBlendStateCreateInfo colorBlending = new PipelineColorBlendStateCreateInfo
-            {
-                SType = StructureType.PipelineColorBlendStateCreateInfo,
-                LogicOpEnable = Vk.False,
-                LogicOp = LogicOp.Copy,
-                AttachmentCount = 1,
-                PAttachments = &colorBlendAttachment,
-            };
+                PipelineColorBlendStateCreateInfo colorBlending = new()
+                {
+                    SType = StructureType.PipelineColorBlendStateCreateInfo,
+                    LogicOpEnable = Vk.False,
+                    LogicOp = LogicOp.Copy,
+                    AttachmentCount = 1,
+                    PAttachments = &colorBlendAttachment,
+                };
 
-            Format swapChainImageFormat = _swapChainContext.SwapChainImageFormat;
-            PipelineRenderingCreateInfo pipelineRenderingCreateInfo =
-                new PipelineRenderingCreateInfo
+                Format swapChainImageFormat = _swapChainContext.SwapChainImageFormat;
+                PipelineRenderingCreateInfo pipelineRenderingCreateInfo = new()
                 {
                     SType = StructureType.PipelineRenderingCreateInfo,
                     ColorAttachmentCount = 1,
                     PColorAttachmentFormats = &swapChainImageFormat,
                 };
 
-            fixed (PipelineShaderStageCreateInfo* pShaderStages = shaderStages)
-            {
-                GraphicsPipelineCreateInfo pipelineInfo = new GraphicsPipelineCreateInfo
+                fixed (PipelineShaderStageCreateInfo* pShaderStages = shaderStages)
                 {
-                    SType = StructureType.GraphicsPipelineCreateInfo,
-                    PNext = &pipelineRenderingCreateInfo,
-                    StageCount = 2,
-                    PStages = pShaderStages,
-                    PVertexInputState = &vertexInputInfo,
-                    PInputAssemblyState = &inputAssembly,
-                    PViewportState = &viewportState,
-                    PRasterizationState = &rasterizer,
-                    PMultisampleState = &multisampling,
-                    PColorBlendState = &colorBlending,
-                    PDynamicState = &dynamicState,
-                    Layout = _pipelineLayout,
-                };
+                    GraphicsPipelineCreateInfo pipelineInfo = new()
+                    {
+                        SType = StructureType.GraphicsPipelineCreateInfo,
+                        PNext = &pipelineRenderingCreateInfo,
+                        StageCount = 2,
+                        PStages = pShaderStages,
+                        PVertexInputState = &vertexInputInfo,
+                        PInputAssemblyState = &inputAssembly,
+                        PViewportState = &viewportState,
+                        PRasterizationState = &rasterizer,
+                        PMultisampleState = &multisampling,
+                        PColorBlendState = &colorBlending,
+                        PDynamicState = &dynamicState,
+                        Layout = _pipelineLayout,
+                    };
 
-                Pipeline pipeline = default;
-                if (
-                    _vk.CreateGraphicsPipelines(
-                        _deviceContext.LogicalDevice,
-                        default,
-                        1,
-                        new ReadOnlySpan<GraphicsPipelineCreateInfo>(ref pipelineInfo),
-                        ReadOnlySpan<AllocationCallbacks>.Empty,
-                        new Span<Pipeline>(ref pipeline)
-                    ) != Result.Success
-                )
-                {
-                    throw new Exception("Failed to create graphics pipeline.");
+                    Pipeline pipeline = default;
+                    if (
+                        _vk.CreateGraphicsPipelines(
+                            _deviceContext.LogicalDevice,
+                            default,
+                            1,
+                            new ReadOnlySpan<GraphicsPipelineCreateInfo>(ref pipelineInfo),
+                            ReadOnlySpan<AllocationCallbacks>.Empty,
+                            new Span<Pipeline>(ref pipeline)
+                        ) != Result.Success
+                    )
+                    {
+                        throw new Exception("Failed to create graphics pipeline.");
+                    }
+
+                    return pipeline;
                 }
-
-                return pipeline;
             }
         }
     }
@@ -223,7 +227,7 @@ internal sealed class GraphicsPipelineContext : IDisposable
         ShaderModule shaderModule;
         fixed (byte* pShaderCode = shaderCode)
         {
-            ShaderModuleCreateInfo createInfo = new ShaderModuleCreateInfo
+            ShaderModuleCreateInfo createInfo = new()
             {
                 SType = StructureType.ShaderModuleCreateInfo,
                 CodeSize = (nuint)shaderCode.Length,

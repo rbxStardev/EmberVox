@@ -54,7 +54,7 @@ internal sealed class SwapChainContext : IDisposable
         SwapChainImageFormat = _surfaceFormat.Format;
         SwapChainExtent = GetSwapChainExtent();
         _presentMode = GetSwapChainPresentMode();
-        SwapChainKhr = CreateSwapChain();
+        SwapChainKhr = CreateSwapChain(null);
         SwapChainImages = GetSwapChainImages();
         SwapChainImageViews = CreateSwapChainImageViews();
 
@@ -95,7 +95,7 @@ internal sealed class SwapChainContext : IDisposable
         SwapChainImageViews = CreateSwapChainImageViews();
     }
 
-    private unsafe SwapchainKHR CreateSwapChain(SwapchainKHR oldSwapChain = default)
+    private unsafe SwapchainKHR CreateSwapChain(SwapchainKHR? oldSwapChain)
     {
         Span<uint> imageCount = stackalloc uint[1];
         imageCount[0] = _surfaceCapabilities.MaxImageCount + 1;
@@ -121,7 +121,7 @@ internal sealed class SwapChainContext : IDisposable
             CompositeAlpha = CompositeAlphaFlagsKHR.OpaqueBitKhr,
             PresentMode = _presentMode,
             Clipped = true,
-            OldSwapchain = oldSwapChain,
+            OldSwapchain = oldSwapChain.GetValueOrDefault(),
         };
 
         uint* queueFamilyIndices = stackalloc[] {

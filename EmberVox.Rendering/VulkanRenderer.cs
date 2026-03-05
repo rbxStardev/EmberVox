@@ -11,6 +11,9 @@ using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering;
 
+// TODO - HARDCODE IS DEAD, ABSTRACTION IS FUEL,THE API IS FULL.
+// TODO - OBJECTIVE: ABSTRACT INTO FULL VULKAN API
+
 public sealed class VulkanRenderer : IDisposable
 {
     private static readonly string[] ValidationLayers = ["VK_LAYER_KHRONOS_validation"];
@@ -34,6 +37,8 @@ public sealed class VulkanRenderer : IDisposable
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
     private readonly CommandContext _commandContext;
     private readonly SyncContext _syncContext;
+
+    private readonly VertexBuffer _vertexBuffer;
 
     private int _frameIndex = 0;
     private bool _frameBufferResized = false;
@@ -91,6 +96,8 @@ public sealed class VulkanRenderer : IDisposable
             _swapChainContext
         );
         Console.WriteLine();
+
+        _vertexBuffer = new VertexBuffer(_vk, _deviceContext);
 
         _commandContext = new CommandContext(
             _vk,
@@ -170,7 +177,7 @@ public sealed class VulkanRenderer : IDisposable
         _vk.ResetFences(_deviceContext.LogicalDevice, new ReadOnlySpan<Fence>(ref drawFence));
 
         _vk.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None);
-        _commandContext.RecordCommandBuffer(imageIndex, _frameIndex);
+        _commandContext.RecordCommandBuffer(imageIndex, _frameIndex, _vertexBuffer);
 
         PipelineStageFlags waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
 
@@ -402,6 +409,8 @@ public sealed class VulkanRenderer : IDisposable
         {
             _debugContext.Dispose();
         }
+
+        _vertexBuffer.Dispose();
 
         _syncContext.Dispose();
         _commandContext.Dispose();

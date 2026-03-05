@@ -20,6 +20,7 @@ internal sealed class DeviceContext : IDisposable
     private readonly Instance _instance;
 
     private readonly SurfaceContext _surfaceContext;
+    private readonly PhysicalDeviceMemoryProperties _memoryProperties;
 
     public DeviceContext(Vk vk, Instance instance, SurfaceContext surfaceContext)
     {
@@ -33,16 +34,34 @@ internal sealed class DeviceContext : IDisposable
             PhysicalDevice
         );
         LogicalDevice = CreateLogicalDevice(graphicsQueueIndex, presentQueueIndex);
-        GraphicsQueue = new QueueFamily
+        GraphicsQueue = new QueueFamily()
         {
             Index = graphicsQueueIndex,
             Queue = _vk.GetDeviceQueue(LogicalDevice, graphicsQueueIndex, 0),
         };
-        PresentQueue = new QueueFamily
+        PresentQueue = new QueueFamily()
         {
             Index = presentQueueIndex,
             Queue = _vk.GetDeviceQueue(LogicalDevice, presentQueueIndex, 0),
         };
+
+        _memoryProperties = _vk.GetPhysicalDeviceMemoryProperties(PhysicalDevice);
+    }
+
+    public uint GetMemoryType(uint typeFilter, MemoryPropertyFlags properties)
+    {
+        for (int i = 0; i < _memoryProperties.MemoryTypeCount; i++)
+        {
+            if (
+                (typeFilter & (uint)(1 << i)) != 0
+                && (_memoryProperties.MemoryTypes[i].PropertyFlags & properties) == properties
+            )
+            {
+                return (uint)i;
+            }
+        }
+
+        throw new Exception("Failed to find suitable memory type!");
     }
 
     private unsafe PhysicalDevice PickPhysicalDevice()
@@ -218,7 +237,7 @@ internal sealed class DeviceContext : IDisposable
 
         for (int i = 0; i < indices.Length; i++)
         {
-            queueCreateInfos[i] = new DeviceQueueCreateInfo
+            queueCreateInfos[i] = new DeviceQueueCreateInfo()
             {
                 SType = StructureType.DeviceQueueCreateInfo,
                 QueueFamilyIndex = indices[i],
