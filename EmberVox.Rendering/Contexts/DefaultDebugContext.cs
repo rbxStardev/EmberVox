@@ -20,9 +20,21 @@ internal sealed class DefaultDebugContext : IDisposable
 
         if (!_vk.TryGetInstanceExtension(_instance, out ExtDebugUtils debugUtilsExtension))
             throw new Exception("Failed to get ExtDebugUtils extension");
-        DebugUtilsExtension = debugUtilsExtension;
 
+        DebugUtilsExtension = debugUtilsExtension;
         DebugMessenger = CreateDebugMessenger();
+    }
+
+    public void Dispose()
+    {
+        DebugUtilsExtension.DestroyDebugUtilsMessenger(
+            _instance,
+            DebugMessenger,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+        DebugUtilsExtension.Dispose();
+
+        GC.SuppressFinalize(this);
     }
 
     private unsafe DebugUtilsMessengerEXT CreateDebugMessenger()
@@ -37,7 +49,7 @@ internal sealed class DefaultDebugContext : IDisposable
             | DebugUtilsMessageTypeFlagsEXT.PerformanceBitExt
             | DebugUtilsMessageTypeFlagsEXT.ValidationBitExt;
 
-        DebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfoExt = new()
+        DebugUtilsMessengerCreateInfoEXT createInfo = new()
         {
             SType = StructureType.DebugUtilsMessengerCreateInfoExt,
             MessageSeverity = severityFlags,
@@ -48,14 +60,12 @@ internal sealed class DefaultDebugContext : IDisposable
         if (
             DebugUtilsExtension.CreateDebugUtilsMessenger(
                 _instance,
-                &debugUtilsMessengerCreateInfoExt,
+                &createInfo,
                 null,
                 out DebugUtilsMessengerEXT debugMessenger
             ) != Result.Success
         )
-        {
             throw new Exception("Failed to create debug messenger");
-        }
 
         return debugMessenger;
     }
@@ -67,58 +77,29 @@ internal sealed class DefaultDebugContext : IDisposable
         void* pUserData
     )
     {
+        string message =
+            $"validation layer: type {type} msg: {Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage)}";
+
         switch (severity)
         {
             case DebugUtilsMessageSeverityFlagsEXT.VerboseBitExt:
-            {
-                Logger.Debug?.WriteLine(
-                    $"(Verbose) validation layer: type {type.ToString()} msg: {Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage)}"
-                );
+                Logger.Debug?.WriteLine($"(Verbose) {message}");
                 break;
-            }
             case DebugUtilsMessageSeverityFlagsEXT.InfoBitExt:
-            {
-                Logger.Info?.WriteLine(
-                    $"(Info) validation layer: type {type.ToString()} msg: {Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage)}"
-                );
+                Logger.Info?.WriteLine($"(Info) {message}");
                 break;
-            }
             case DebugUtilsMessageSeverityFlagsEXT.WarningBitExt:
-            {
-                Logger.Warning?.WriteLine(
-                    $"(Warning) validation layer: type {type.ToString()} msg: {Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage)}"
-                );
+                Logger.Warning?.WriteLine($"(Warning) {message}");
                 break;
-            }
             case DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt:
-            {
-                Logger.Error?.WriteLine(
-                    $"(Error) validation layer: type {type.ToString()} msg: {Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage)}"
-                );
+                Logger.Error?.WriteLine($"(Error) {message}");
                 break;
-            }
             case DebugUtilsMessageSeverityFlagsEXT.None:
             default:
-            {
-                Console.WriteLine(
-                    $"validation layer: type {type.ToString()} msg: {Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage)}"
-                );
+                Console.WriteLine(message);
                 break;
-            }
         }
 
         return Vk.False;
-    }
-
-    public void Dispose()
-    {
-        DebugUtilsExtension.DestroyDebugUtilsMessenger(
-            _instance,
-            DebugMessenger,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
-        DebugUtilsExtension.Dispose();
-
-        GC.SuppressFinalize(this);
     }
 }

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Silk.NET.Vulkan;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
@@ -25,7 +24,6 @@ internal sealed class SyncContext : IDisposable
         _vk = vk;
         _deviceContext = deviceContext;
         _swapChainContext = swapChainContext;
-
         _maxFramesInFlight = maxFramesInFlight;
 
         PresentCompleteSemaphores = new Semaphore[_maxFramesInFlight];
@@ -33,64 +31,6 @@ internal sealed class SyncContext : IDisposable
         InFlightFences = new Fence[_maxFramesInFlight];
 
         CreateSyncObjects();
-    }
-
-    private void CreateSyncObjects()
-    {
-        for (int i = 0; i < _swapChainContext.SwapChainImages.Length; i++)
-        {
-            RenderFinishedSemaphores[i] = CreateSemaphore();
-        }
-
-        for (uint i = 0; i < _maxFramesInFlight; i++)
-        {
-            PresentCompleteSemaphores[i] = CreateSemaphore();
-            InFlightFences[i] = CreateFence();
-        }
-    }
-
-    public Semaphore CreateSemaphore()
-    {
-        SemaphoreCreateInfo semaphoreInfo = new() { SType = StructureType.SemaphoreCreateInfo };
-
-        Semaphore semaphore = default;
-        if (
-            _vk.CreateSemaphore(
-                _deviceContext.LogicalDevice,
-                new ReadOnlySpan<SemaphoreCreateInfo>(ref semaphoreInfo),
-                ReadOnlySpan<AllocationCallbacks>.Empty,
-                new Span<Semaphore>(ref semaphore)
-            ) != Result.Success
-        )
-        {
-            throw new Exception("Failed to create semaphore");
-        }
-
-        return semaphore;
-    }
-
-    public Fence CreateFence()
-    {
-        FenceCreateInfo fenceInfo = new()
-        {
-            SType = StructureType.FenceCreateInfo,
-            Flags = FenceCreateFlags.SignaledBit,
-        };
-
-        Fence fence = default;
-        if (
-            _vk.CreateFence(
-                _deviceContext.LogicalDevice,
-                new ReadOnlySpan<FenceCreateInfo>(ref fenceInfo),
-                ReadOnlySpan<AllocationCallbacks>.Empty,
-                new Span<Fence>(ref fence)
-            ) != Result.Success
-        )
-        {
-            throw new Exception("Failed to create fence");
-        }
-
-        return fence;
     }
 
     public void Dispose()
@@ -115,5 +55,57 @@ internal sealed class SyncContext : IDisposable
             );
 
         GC.SuppressFinalize(this);
+    }
+
+    public Semaphore CreateSemaphore()
+    {
+        SemaphoreCreateInfo semaphoreInfo = new() { SType = StructureType.SemaphoreCreateInfo };
+
+        Semaphore semaphore = default;
+        if (
+            _vk.CreateSemaphore(
+                _deviceContext.LogicalDevice,
+                new ReadOnlySpan<SemaphoreCreateInfo>(ref semaphoreInfo),
+                ReadOnlySpan<AllocationCallbacks>.Empty,
+                new Span<Semaphore>(ref semaphore)
+            ) != Result.Success
+        )
+            throw new Exception("Failed to create semaphore");
+
+        return semaphore;
+    }
+
+    public Fence CreateFence()
+    {
+        FenceCreateInfo fenceInfo = new()
+        {
+            SType = StructureType.FenceCreateInfo,
+            Flags = FenceCreateFlags.SignaledBit,
+        };
+
+        Fence fence = default;
+        if (
+            _vk.CreateFence(
+                _deviceContext.LogicalDevice,
+                new ReadOnlySpan<FenceCreateInfo>(ref fenceInfo),
+                ReadOnlySpan<AllocationCallbacks>.Empty,
+                new Span<Fence>(ref fence)
+            ) != Result.Success
+        )
+            throw new Exception("Failed to create fence");
+
+        return fence;
+    }
+
+    private void CreateSyncObjects()
+    {
+        for (int i = 0; i < _swapChainContext.SwapChainImages.Length; i++)
+            RenderFinishedSemaphores[i] = CreateSemaphore();
+
+        for (int i = 0; i < _maxFramesInFlight; i++)
+        {
+            PresentCompleteSemaphores[i] = CreateSemaphore();
+            InFlightFences[i] = CreateFence();
+        }
     }
 }

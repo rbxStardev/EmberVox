@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Numerics;
+using EmberVox.Core;
 using EmberVox.Logging;
 using EmberVox.Rendering.Contexts;
 using Silk.NET.Core;
@@ -11,12 +13,23 @@ using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering;
 
-// TODO - HARDCODE IS DEAD, ABSTRACTION IS FUEL,THE API IS FULL.
+// TODO - HARDCODE IS DEAD, ABSTRACTION IS FUEL, THE API IS FULL.
 // TODO - OBJECTIVE: ABSTRACT INTO FULL VULKAN API
 
 public sealed class VulkanRenderer : IDisposable
 {
+    private static readonly Vertex[] Vertices =
+    [
+        new() { Position = new Vector2(-0.5f, -0.5f), Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f) },
+        new() { Position = new Vector2(0.5f, -0.5f), Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f) },
+        new() { Position = new Vector2(0.5f, 0.5f), Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f) },
+        new() { Position = new Vector2(-0.5f, 0.5f), Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f) },
+    ];
+
+    private static readonly uint[] Indices = [0, 1, 2, 2, 3, 0];
+
     private static readonly string[] ValidationLayers = ["VK_LAYER_KHRONOS_validation"];
+
     private const int MaxFramesInFlight = 2;
 #if DEBUG
     private const bool EnableValidationLayers = true;
@@ -25,64 +38,61 @@ public sealed class VulkanRenderer : IDisposable
 #endif
 
     private readonly IWindow _window;
-
     private readonly Vk _vk;
     private readonly Instance _instance;
-
     private readonly DefaultDebugContext _debugContext;
-    private readonly DeviceContext _deviceContext;
     private readonly SurfaceContext _surfaceContext;
+    private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
-
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
     private readonly CommandContext _commandContext;
     private readonly SyncContext _syncContext;
+    private readonly BufferContext _vertexBuffer;
+    private readonly BufferContext _indexBuffer;
 
-    private readonly VertexBuffer _vertexBuffer;
-
-    private int _frameIndex = 0;
-    private bool _frameBufferResized = false;
+    private int _frameIndex;
+    private bool _frameBufferResized;
 
     public VulkanRenderer(IWindow window)
     {
         _window = window;
 
-        // Init Vulkan
-
         Logger.Info?.WriteLine("~ Initializing Vulkan... ~");
         Console.WriteLine();
         _vk = Vk.GetApi();
 
-        Logger.Debug?.WriteLine("-----> Creating Instance... <-----");
-        _instance = CreateInstance();
-        Logger.Debug?.WriteLine("-----> Instance creation: OK <-----");
-        Console.WriteLine();
+        {
+            Logger.Debug?.WriteLine("-----> Creating Instance... <-----");
+            _instance = CreateInstance();
+            Logger.Debug?.WriteLine("-----> Instance creation: OK <-----");
+            Console.WriteLine();
 
-        Logger.Debug?.WriteLine("-----> Creating DebugMessenger... <-----");
-        _debugContext = new DefaultDebugContext(_vk, _instance);
-        Logger.Debug?.WriteLine("-----> DebugMessenger creation: OK <-----");
-        Console.WriteLine();
+            Logger.Debug?.WriteLine("-----> Creating DebugMessenger... <-----");
+            _debugContext = new DefaultDebugContext(_vk, _instance);
+            Logger.Debug?.WriteLine("-----> DebugMessenger creation: OK <-----");
+            Console.WriteLine();
 
-        Logger.Debug?.WriteLine("-----> Creating SurfaceContext... <-----");
-        _surfaceContext = new SurfaceContext(_vk, _instance, _window);
-        Logger.Debug?.WriteLine("-----> SurfaceContext creation: OK <-----");
-        Console.WriteLine();
+            Logger.Debug?.WriteLine("-----> Creating SurfaceContext... <-----");
+            _surfaceContext = new SurfaceContext(_vk, _instance, _window);
+            Logger.Debug?.WriteLine("-----> SurfaceContext creation: OK <-----");
+            Console.WriteLine();
 
-        Logger.Debug?.WriteLine("-----> Creating DeviceContext... <-----");
-        _deviceContext = new DeviceContext(_vk, _instance, _surfaceContext);
-        Logger.Debug?.WriteLine("-----> DeviceContext creation: OK <-----");
-        Console.WriteLine();
+            Logger.Debug?.WriteLine("-----> Creating DeviceContext... <-----");
+            _deviceContext = new DeviceContext(_vk, _instance, _surfaceContext);
+            Logger.Debug?.WriteLine("-----> DeviceContext creation: OK <-----");
+            Console.WriteLine();
 
-        Logger.Debug?.WriteLine("-----> Creating SwapChainContext... <-----");
-        _swapChainContext = new SwapChainContext(
-            _vk,
-            _surfaceContext,
-            _deviceContext,
-            _window,
-            _instance
-        );
-        Logger.Debug?.WriteLine("-----> SwapChainContext creation: OK <-----");
-        Console.WriteLine();
+            Logger.Debug?.WriteLine("-----> Creating SwapChainContext... <-----");
+            _swapChainContext = new SwapChainContext(
+                _vk,
+                _surfaceContext,
+                _deviceContext,
+                _window,
+                _instance
+            );
+            Logger.Debug?.WriteLine("-----> SwapChainContext creation: OK <-----");
+            Console.WriteLine();
+        }
 
         Logger.Info?.WriteLine("~ Vulkan successfully initialized. ~");
         Console.WriteLine();
@@ -90,27 +100,108 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Info?.WriteLine("~ Initializing Graphics Pipeline... ~");
         Console.WriteLine();
 
-        _graphicsPipelineContext = new GraphicsPipelineContext(
-            _vk,
-            _deviceContext,
-            _swapChainContext
-        );
-        Console.WriteLine();
+        {
+            _graphicsPipelineContext = new GraphicsPipelineContext(
+                _vk,
+                _deviceContext,
+                _swapChainContext
+            );
+            Console.WriteLine();
 
-        _vertexBuffer = new VertexBuffer(_vk, _deviceContext);
-
-        _commandContext = new CommandContext(
-            _vk,
-            _deviceContext,
-            _swapChainContext,
-            _graphicsPipelineContext,
-            MaxFramesInFlight
-        );
-
-        _syncContext = new SyncContext(_vk, _deviceContext, _swapChainContext, MaxFramesInFlight);
+            _commandContext = new CommandContext(
+                _vk,
+                _deviceContext,
+                _swapChainContext,
+                _graphicsPipelineContext,
+                MaxFramesInFlight
+            );
+            _syncContext = new SyncContext(
+                _vk,
+                _deviceContext,
+                _swapChainContext,
+                MaxFramesInFlight
+            );
+        }
 
         Logger.Info?.WriteLine("~ Graphics Pipeline successfully initialized. ~");
         Console.WriteLine();
+
+        Logger.Info?.WriteLine("~ Initializing Buffers... ~");
+        Console.WriteLine();
+
+        {
+            // Vertex
+            ulong vertexBufferSize = (ulong)Vertices.AsBytes().Length;
+
+            BufferContext stagingBuffer = new(
+                _vk,
+                _deviceContext,
+                vertexBufferSize,
+                BufferUsageFlags.TransferSrcBit
+            );
+            Vertices.AsBytes().CopyTo(stagingBuffer.MappedMemory);
+
+            _vertexBuffer = new BufferContext(
+                _vk,
+                _deviceContext,
+                vertexBufferSize,
+                BufferUsageFlags.TransferDstBit | BufferUsageFlags.VertexBufferBit,
+                MemoryPropertyFlags.DeviceLocalBit
+            );
+
+            _commandContext.CopyBuffer(stagingBuffer, _vertexBuffer, vertexBufferSize);
+            stagingBuffer.Dispose();
+
+            // Indices
+
+            ulong indexBufferSize = (ulong)Indices.AsBytes().Length;
+
+            stagingBuffer = new BufferContext(
+                _vk,
+                _deviceContext,
+                indexBufferSize,
+                BufferUsageFlags.TransferSrcBit
+            );
+            Indices.AsBytes().CopyTo(stagingBuffer.MappedMemory);
+
+            _indexBuffer = new BufferContext(
+                _vk,
+                _deviceContext,
+                indexBufferSize,
+                BufferUsageFlags.TransferDstBit | BufferUsageFlags.IndexBufferBit,
+                MemoryPropertyFlags.DeviceLocalBit
+            );
+
+            _commandContext.CopyBuffer(stagingBuffer, _indexBuffer, indexBufferSize);
+            stagingBuffer.Dispose();
+        }
+
+        Logger.Info?.WriteLine("~ Buffers successfully initialized. ~");
+        Console.WriteLine();
+    }
+
+    public void Dispose()
+    {
+        Logger.Debug?.WriteLine("Application closed, disposing...");
+
+        if (EnableValidationLayers)
+            _debugContext.Dispose();
+
+        _indexBuffer.Dispose();
+        _vertexBuffer.Dispose();
+        _syncContext.Dispose();
+        _commandContext.Dispose();
+        _graphicsPipelineContext.Dispose();
+        _swapChainContext.Dispose();
+        _surfaceContext.Dispose();
+        _deviceContext.Dispose();
+
+        _vk.DestroyInstance(_instance, ReadOnlySpan<AllocationCallbacks>.Empty);
+        _vk.Dispose();
+
+        Logger.Debug?.WriteLine("Application successfully disposed, exiting...");
+
+        GC.SuppressFinalize(this);
     }
 
     public void MainLoop()
@@ -123,19 +214,14 @@ public sealed class VulkanRenderer : IDisposable
         _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
     }
 
-    private void WindowOnFramebufferResize(Vector2D<int> newSize)
-    {
-        _frameBufferResized = true;
-    }
+    private void WindowOnFramebufferResize(Vector2D<int> newSize) => _frameBufferResized = true;
 
     private unsafe void WindowOnRender(double deltaTime)
     {
-        int fps = (int)(1.0 / deltaTime);
-        _window.Title = $"EmberVox: Vulkan - {fps} FPS";
+        _window.Title = $"EmberVox: Vulkan - {(int)(1.0 / deltaTime)} FPS";
 
         Semaphore presentCompleteSemaphore = _syncContext.PresentCompleteSemaphores[_frameIndex];
         Fence drawFence = _syncContext.InFlightFences[_frameIndex];
-
         CommandBuffer commandBuffer = _commandContext.CommandBuffers[_frameIndex];
         SwapchainKHR swapchain = _swapChainContext.SwapChainKhr;
 
@@ -147,9 +233,7 @@ public sealed class VulkanRenderer : IDisposable
                 ulong.MaxValue
             ) != Result.Success
         )
-        {
             throw new Exception("Failed to wait for fence!");
-        }
 
         uint imageIndex = 0;
         Result result = _swapChainContext.KhrSwapChainExtension.AcquireNextImage(
@@ -160,6 +244,7 @@ public sealed class VulkanRenderer : IDisposable
             default,
             ref imageIndex
         );
+
         if (result == Result.ErrorOutOfDateKhr)
         {
             RecreateSwapChain();
@@ -175,12 +260,10 @@ public sealed class VulkanRenderer : IDisposable
         Semaphore renderFinishedSemaphore = _syncContext.RenderFinishedSemaphores[imageIndex];
 
         _vk.ResetFences(_deviceContext.LogicalDevice, new ReadOnlySpan<Fence>(ref drawFence));
-
         _vk.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None);
-        _commandContext.RecordCommandBuffer(imageIndex, _frameIndex, _vertexBuffer);
+        _commandContext.RecordCommandBuffer(imageIndex, _frameIndex, _vertexBuffer, _indexBuffer);
 
         PipelineStageFlags waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
-
         SubmitInfo submitInfo = new()
         {
             SType = StructureType.SubmitInfo,
@@ -213,6 +296,7 @@ public sealed class VulkanRenderer : IDisposable
             _deviceContext.PresentQueue.Queue,
             ref presentInfoKhr
         );
+
         if (
             result == Result.ErrorOutOfDateKhr
             || result == Result.SuboptimalKhr
@@ -233,27 +317,21 @@ public sealed class VulkanRenderer : IDisposable
     private void RecreateSwapChain()
     {
         while (_window.FramebufferSize.X == 0 || _window.FramebufferSize.Y == 0)
-        {
             _window.DoEvents();
-        }
 
         _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
-
         _swapChainContext.RecreateSwapChain();
     }
 
     private unsafe Instance CreateInstance()
     {
-        // Enable validation layers
         Logger.Metric?.WriteLine(
             $"Checking for {ValidationLayers.Length} validation layer(s) support: {string.Join(", ", ValidationLayers)}"
         );
+
         if (EnableValidationLayers && !CheckValidationLayerSupport())
             throw new Exception("Validation layer(s) not supported");
 
-        // Using "(byte*)SilkMarshal.StringToPtr("string");" to turn strings to pointers since vulkan structs work with pointers/unmanaged types!
-        // Dont forget to dispose after usage with "SilkMarshal.Free((nint)reference);".
-        // Vulkan structs also need a SType specification on C#, or else the GPU won't be able to recognize the struct!
         ApplicationInfo appInfo = new()
         {
             SType = StructureType.ApplicationInfo,
@@ -286,18 +364,12 @@ public sealed class VulkanRenderer : IDisposable
                 $"{ValidationLayers.Length} Enabled validation layer(s): {string.Join(", ", ValidationLayers)}"
             );
             createInfo.EnabledLayerCount = (uint)ValidationLayers.Length;
-
             createInfo.PpEnabledLayerNames = (byte**)SilkMarshal.StringArrayToPtr(ValidationLayers);
-        }
-        else
-        {
-            createInfo.EnabledLayerCount = 0;
         }
 
         if (_vk.CreateInstance(&createInfo, null, out Instance instance) != Result.Success)
             throw new Exception("Failed to create Vulkan instance");
 
-        // Cleanup
         SilkMarshal.Free((nint)appInfo.PApplicationName);
         SilkMarshal.Free((nint)appInfo.PEngineName);
         SilkMarshal.Free((nint)createInfo.PpEnabledExtensionNames);
@@ -314,27 +386,21 @@ public sealed class VulkanRenderer : IDisposable
         _vk.EnumerateInstanceLayerProperties(layerCount, Span<LayerProperties>.Empty);
 
         LayerProperties[] availableLayers = new LayerProperties[layerCount[0]];
-
         _vk.EnumerateInstanceLayerProperties(layerCount, availableLayers.AsSpan());
 
         foreach (string required in ValidationLayers)
         {
-            bool found = false;
             if (
-                availableLayers.Any(layer =>
+                !availableLayers.Any(layer =>
                     SilkMarshal.PtrToString((nint)layer.LayerName) == required
                 )
             )
             {
-                Logger.Info?.WriteLine($"Found support for validation layer: {required}");
-                found = true;
+                Logger.Warning?.WriteLine($"Validation layer not supported: {required}");
+                return false;
             }
 
-            if (found)
-                continue;
-
-            Logger.Warning?.WriteLine($"Validation layer not supported: {required}");
-            return false;
+            Logger.Info?.WriteLine($"Found support for validation layer: {required}");
         }
 
         return true;
@@ -346,9 +412,7 @@ public sealed class VulkanRenderer : IDisposable
 
         string[] requiredExtensions = new string[extensionCount];
         for (int i = 0; i < extensionCount; i++)
-        {
             requiredExtensions[i] = SilkMarshal.PtrToString((nint)extensions[i])!;
-        }
 
         if (EnableValidationLayers)
         {
@@ -377,55 +441,19 @@ public sealed class VulkanRenderer : IDisposable
 
         foreach (string requiredName in required)
         {
-            bool found = false;
-
             if (
-                extensionProperties.Any(prop =>
+                !extensionProperties.Any(prop =>
                     SilkMarshal.PtrToString((nint)prop.ExtensionName) == requiredName
                 )
             )
             {
-                Logger.Info?.WriteLine($"Found support for extension: {requiredName}");
-                found = true;
+                Logger.Warning?.WriteLine($"Extension not supported: {requiredName}");
+                return false;
             }
 
-            if (found)
-                continue;
-
-            Logger.Warning?.WriteLine($"Extension not supported: {requiredName}");
-            return false;
+            Logger.Info?.WriteLine($"Found support for extension: {requiredName}");
         }
 
         return true;
-    }
-
-    public void Dispose()
-    {
-        // DO NOT change the order of disposal, as it's very important!
-
-        Logger.Debug?.WriteLine("Application closed, disposing...");
-
-        if (EnableValidationLayers)
-        {
-            _debugContext.Dispose();
-        }
-
-        _vertexBuffer.Dispose();
-
-        _syncContext.Dispose();
-        _commandContext.Dispose();
-        _graphicsPipelineContext.Dispose();
-
-        _swapChainContext.Dispose();
-        _surfaceContext.Dispose();
-        _deviceContext.Dispose();
-
-        _vk.DestroyInstance(_instance, ReadOnlySpan<AllocationCallbacks>.Empty);
-        _vk.Dispose();
-
-        Logger.Debug?.WriteLine("Application successfully disposed, exiting...");
-
-        // Cute warning for the damn carbage collector so it stops shouting at me and shuts up
-        GC.SuppressFinalize(this);
     }
 }

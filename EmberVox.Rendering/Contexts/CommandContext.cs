@@ -5,7 +5,7 @@ namespace EmberVox.Rendering.Contexts;
 
 internal sealed class CommandContext : IDisposable
 {
-    public CommandPool CommandPool { get; }
+    public CommandPool MainCommandPool { get; }
     public CommandBuffer[] CommandBuffers { get; private set; }
 
     private readonly Vk _vk;
@@ -28,38 +28,28 @@ internal sealed class CommandContext : IDisposable
         _graphicsPipelineContext = graphicsPipelineContext;
         _maxFramesInFlight = maxFramesInFlight;
 
-        CommandPool = CreateCommandPool();
+        MainCommandPool = CreateCommandPool(_deviceContext.GraphicsQueue.Index);
         CommandBuffers = new CommandBuffer[_maxFramesInFlight];
 
-        CreateCommandBuffers();
+        CreateCommandBuffers(MainCommandPool, _maxFramesInFlight, CommandBuffers);
     }
 
-    private void CreateCommandBuffers()
+    public void Dispose()
     {
-        CommandBufferAllocateInfo allocInfo = new()
-        {
-            SType = StructureType.CommandBufferAllocateInfo,
-            CommandPool = CommandPool,
-            Level = CommandBufferLevel.Primary,
-            CommandBufferCount = _maxFramesInFlight,
-        };
+        _vk.DestroyCommandPool(
+            _deviceContext.LogicalDevice,
+            MainCommandPool,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
 
-        if (
-            _vk.AllocateCommandBuffers(
-                _deviceContext.LogicalDevice,
-                new ReadOnlySpan<CommandBufferAllocateInfo>(ref allocInfo),
-                new Span<CommandBuffer>(CommandBuffers)
-            ) != Result.Success
-        )
-        {
-            throw new Exception("Failed to allocate command buffers");
-        }
+        GC.SuppressFinalize(this);
     }
 
     public unsafe void RecordCommandBuffer(
         uint imageIndex,
         int currentFrame,
-        VertexBuffer vertexBuffer
+        BufferContext vertexBuffer,
+        BufferContext indexBuffer
     )
     {
         CommandBuffer commandBuffer = CommandBuffers[currentFrame];
@@ -113,13 +103,16 @@ internal sealed class CommandContext : IDisposable
             _graphicsPipelineContext.GraphicsPipeline
         );
 
-        Buffer buffer = vertexBuffer.Buffer;
+        Buffer vertexBufferBuffer = vertexBuffer.Buffer;
         _vk.CmdBindVertexBuffers(
             commandBuffer,
             0,
-            new ReadOnlySpan<Buffer>(ref buffer),
+            new ReadOnlySpan<Buffer>(ref vertexBufferBuffer),
             new ReadOnlySpan<ulong>([0])
         );
+
+        Buffer indexBufferBuffer = indexBuffer.Buffer;
+        _vk.CmdBindIndexBuffer(commandBuffer, indexBufferBuffer, 0, IndexType.Uint32);
 
         Viewport viewport = new(
             0.0f,
@@ -134,7 +127,7 @@ internal sealed class CommandContext : IDisposable
         Rect2D scissor = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
         _vk.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
 
-        _vk.CmdDraw(commandBuffer, 3, 1, 0, 0);
+        _vk.CmdDrawIndexed(commandBuffer, 6, 1, 0, 0, 0);
 
         _vk.CmdEndRendering(commandBuffer);
 
@@ -150,6 +143,103 @@ internal sealed class CommandContext : IDisposable
         );
 
         _vk.EndCommandBuffer(commandBuffer);
+    }
+
+    public unsafe void CopyBuffer(BufferContext srcBuffer, BufferContext dstBuffer, ulong size)
+    {
+        CommandPool commandCopyPool = CreateCommandPool(
+            _deviceContext.GraphicsQueue.Index,
+            CommandPoolCreateFlags.TransientBit
+        );
+
+        CommandBuffer commandCopyBuffer = default;
+        CreateCommandBuffers(commandCopyPool, 1, new Span<CommandBuffer>(ref commandCopyBuffer));
+
+        CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
+        _vk.BeginCommandBuffer(
+            commandCopyBuffer,
+            new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
+        );
+
+        BufferCopy copy = new() { Size = size };
+        _vk.CmdCopyBuffer(
+            commandCopyBuffer,
+            srcBuffer.Buffer,
+            dstBuffer.Buffer,
+            new ReadOnlySpan<BufferCopy>(ref copy)
+        );
+
+        _vk.EndCommandBuffer(commandCopyBuffer);
+
+        SubmitInfo submitInfo = new()
+        {
+            SType = StructureType.SubmitInfo,
+            CommandBufferCount = 1,
+            PCommandBuffers = &commandCopyBuffer,
+        };
+        _vk.QueueSubmit(
+            _deviceContext.GraphicsQueue.Queue,
+            new ReadOnlySpan<SubmitInfo>(ref submitInfo),
+            default
+        );
+        _vk.QueueWaitIdle(_deviceContext.GraphicsQueue.Queue);
+
+        _vk.DestroyCommandPool(
+            _deviceContext.LogicalDevice,
+            commandCopyPool,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+    }
+
+    private void CreateCommandBuffers(
+        CommandPool commandPool,
+        uint commandBufferCount,
+        Span<CommandBuffer> bufferAllocRef,
+        CommandBufferLevel level = CommandBufferLevel.Primary
+    )
+    {
+        CommandBufferAllocateInfo allocInfo = new()
+        {
+            SType = StructureType.CommandBufferAllocateInfo,
+            CommandPool = commandPool,
+            Level = level,
+            CommandBufferCount = commandBufferCount,
+        };
+
+        if (
+            _vk.AllocateCommandBuffers(
+                _deviceContext.LogicalDevice,
+                new ReadOnlySpan<CommandBufferAllocateInfo>(ref allocInfo),
+                bufferAllocRef
+            ) != Result.Success
+        )
+            throw new Exception("Failed to allocate command buffers");
+    }
+
+    private CommandPool CreateCommandPool(
+        uint queueFamilyIndex,
+        CommandPoolCreateFlags flags = CommandPoolCreateFlags.ResetCommandBufferBit
+    )
+    {
+        CommandPoolCreateInfo poolInfo = new()
+        {
+            SType = StructureType.CommandPoolCreateInfo,
+            Flags = flags,
+            QueueFamilyIndex = queueFamilyIndex,
+        };
+
+        CommandPool commandPool = default;
+        if (
+            _vk.CreateCommandPool(
+                _deviceContext.LogicalDevice,
+                new ReadOnlySpan<CommandPoolCreateInfo>(ref poolInfo),
+                ReadOnlySpan<AllocationCallbacks>.Empty,
+                new Span<CommandPool>(ref commandPool)
+            ) != Result.Success
+        )
+            throw new Exception("Failed to create command pool");
+
+        return commandPool;
     }
 
     private unsafe void TransitionImageLayout(
@@ -196,41 +286,5 @@ internal sealed class CommandContext : IDisposable
             commandBuffer,
             new ReadOnlySpan<DependencyInfo>(ref dependencyInfo)
         );
-    }
-
-    private CommandPool CreateCommandPool()
-    {
-        CommandPoolCreateInfo poolInfo = new()
-        {
-            SType = StructureType.CommandPoolCreateInfo,
-            Flags = CommandPoolCreateFlags.ResetCommandBufferBit,
-            QueueFamilyIndex = _deviceContext.GraphicsQueue.Index,
-        };
-
-        CommandPool commandPool = default;
-        if (
-            _vk.CreateCommandPool(
-                _deviceContext.LogicalDevice,
-                new ReadOnlySpan<CommandPoolCreateInfo>(ref poolInfo),
-                ReadOnlySpan<AllocationCallbacks>.Empty,
-                new Span<CommandPool>(ref commandPool)
-            ) != Result.Success
-        )
-        {
-            throw new Exception("Failed to create command pool");
-        }
-
-        return commandPool;
-    }
-
-    public void Dispose()
-    {
-        _vk.DestroyCommandPool(
-            _deviceContext.LogicalDevice,
-            CommandPool,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
-
-        GC.SuppressFinalize(this);
     }
 }

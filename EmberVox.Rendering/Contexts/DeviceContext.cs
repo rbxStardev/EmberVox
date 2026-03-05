@@ -1,5 +1,6 @@
 using EmberVox.Logging;
 using EmberVox.Rendering;
+using EmberVox.Rendering.Contexts;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
@@ -9,7 +10,6 @@ namespace EmberVox;
 internal sealed class DeviceContext : IDisposable
 {
     public PhysicalDevice PhysicalDevice { get; }
-
     public Device LogicalDevice { get; }
     public QueueFamily GraphicsQueue { get; }
     public QueueFamily PresentQueue { get; }
@@ -18,7 +18,6 @@ internal sealed class DeviceContext : IDisposable
 
     private readonly Vk _vk;
     private readonly Instance _instance;
-
     private readonly SurfaceContext _surfaceContext;
     private readonly PhysicalDeviceMemoryProperties _memoryProperties;
 
@@ -33,6 +32,7 @@ internal sealed class DeviceContext : IDisposable
         (uint graphicsQueueIndex, uint presentQueueIndex) = FindPhysicalDeviceQueueFamilies(
             PhysicalDevice
         );
+
         LogicalDevice = CreateLogicalDevice(graphicsQueueIndex, presentQueueIndex);
         GraphicsQueue = new QueueFamily()
         {
@@ -48,6 +48,12 @@ internal sealed class DeviceContext : IDisposable
         _memoryProperties = _vk.GetPhysicalDeviceMemoryProperties(PhysicalDevice);
     }
 
+    public void Dispose()
+    {
+        _vk.DestroyDevice(LogicalDevice, ReadOnlySpan<AllocationCallbacks>.Empty);
+        GC.SuppressFinalize(this);
+    }
+
     public uint GetMemoryType(uint typeFilter, MemoryPropertyFlags properties)
     {
         for (int i = 0; i < _memoryProperties.MemoryTypeCount; i++)
@@ -56,9 +62,7 @@ internal sealed class DeviceContext : IDisposable
                 (typeFilter & (uint)(1 << i)) != 0
                 && (_memoryProperties.MemoryTypes[i].PropertyFlags & properties) == properties
             )
-            {
                 return (uint)i;
-            }
         }
 
         throw new Exception("Failed to find suitable memory type!");
@@ -68,7 +72,7 @@ internal sealed class DeviceContext : IDisposable
     {
         IReadOnlyCollection<PhysicalDevice>? devices = _vk.GetPhysicalDevices(_instance);
         if (devices.Count == 0)
-            throw new Exception("failed to find GPUs with Vulkan support!");
+            throw new Exception("Failed to find GPUs with Vulkan support!");
 
         Logger.Info?.WriteLine("Checking for suitable physical devices...");
         foreach (PhysicalDevice device in devices)
@@ -81,14 +85,14 @@ internal sealed class DeviceContext : IDisposable
             Logger.Metric?.WriteLine(
                 $"Device Name: {SilkMarshal.PtrToString((nint)properties.DeviceName)}"
             );
-            Logger.Metric?.WriteLine($"Device Type: {properties.DeviceType.ToString()}");
+            Logger.Metric?.WriteLine($"Device Type: {properties.DeviceType}");
             Logger.Metric?.WriteLine($"Device Vendor ID: {properties.VendorID}");
             Logger.Metric?.WriteLine($"Device ID: {properties.DeviceID}");
 
             return device;
         }
 
-        throw new Exception("failed to find a suitable GPU!");
+        throw new Exception("Failed to find a suitable GPU!");
     }
 
     private unsafe bool IsPhysicalDeviceSuitable(PhysicalDevice device)
@@ -112,8 +116,8 @@ internal sealed class DeviceContext : IDisposable
             queueFamilies.AsSpan()
         );
 
-        bool hasGraphicsQueue = queueFamilies.Any(queueFamily =>
-            (queueFamily.QueueFlags & QueueFlags.GraphicsBit) != 0
+        bool hasGraphicsQueue = queueFamilies.Any(q =>
+            (q.QueueFlags & QueueFlags.GraphicsBit) != 0
         );
         Logger.Metric?.WriteLine("Physical device has graphics queue (Passed)");
 
@@ -133,10 +137,8 @@ internal sealed class DeviceContext : IDisposable
             extensions.AsSpan()
         );
 
-        bool hasExtensions = DeviceExtensions.All(extensionName =>
-            extensions.Any(extension =>
-                SilkMarshal.PtrToString((nint)extension.ExtensionName) == extensionName
-            )
+        bool hasExtensions = DeviceExtensions.All(name =>
+            extensions.Any(e => SilkMarshal.PtrToString((nint)e.ExtensionName) == name)
         );
         Logger.Metric?.WriteLine("Physical device extensions are valid (Passed)");
 
@@ -188,50 +190,44 @@ internal sealed class DeviceContext : IDisposable
 
     private unsafe Device CreateLogicalDevice(uint graphicsIndex, uint presentIndex)
     {
-        Device logicalDevice;
         float queuePriority = 0.5f;
 
-        PhysicalDeviceFeatures deviceFeatures = new();
+        PhysicalDeviceExtendedDynamicStateFeaturesEXT extendedDynamicState = new()
+        {
+            SType = StructureType.PhysicalDeviceExtendedDynamicStateFeaturesExt,
+            ExtendedDynamicState = true,
+        };
 
-        PhysicalDeviceExtendedDynamicStateFeaturesEXT physicalDeviceExtendedDynamicStateFeaturesExt =
-            new()
-            {
-                SType = StructureType.PhysicalDeviceExtendedDynamicStateFeaturesExt,
-                ExtendedDynamicState = true,
-            };
-
-        PhysicalDeviceVulkan11Features physicalDeviceVulkan11Features = new()
+        PhysicalDeviceVulkan11Features vulkan11Features = new()
         {
             SType = StructureType.PhysicalDeviceVulkan11Features,
             ShaderDrawParameters = Vk.True,
-            PNext = &physicalDeviceExtendedDynamicStateFeaturesExt,
+            PNext = &extendedDynamicState,
         };
 
-        PhysicalDeviceVulkan13Features physicalDeviceVulkan13Features = new()
+        PhysicalDeviceVulkan13Features vulkan13Features = new()
         {
             SType = StructureType.PhysicalDeviceVulkan13Features,
             DynamicRendering = true,
             Synchronization2 = true,
-            PNext = &physicalDeviceVulkan11Features,
+            PNext = &vulkan11Features,
         };
 
-        PhysicalDeviceFeatures2 physicalDeviceFeatures2 = new()
+        PhysicalDeviceFeatures2 deviceFeatures2 = new()
         {
             SType = StructureType.PhysicalDeviceFeatures2,
-            PNext = &physicalDeviceVulkan13Features,
+            PNext = &vulkan13Features,
         };
 
         DeviceCreateInfo deviceCreateInfo = new()
         {
             SType = StructureType.DeviceCreateInfo,
-            PNext = &physicalDeviceFeatures2,
-            QueueCreateInfoCount = 1,
+            PNext = &deviceFeatures2,
             EnabledExtensionCount = (uint)DeviceExtensions.Length,
             PpEnabledExtensionNames = (byte**)SilkMarshal.StringArrayToPtr(DeviceExtensions),
         };
 
         HashSet<uint> uniqueIndices = [graphicsIndex, presentIndex];
-
         uint[] indices = uniqueIndices.ToArray();
         DeviceQueueCreateInfo[] queueCreateInfos = new DeviceQueueCreateInfo[indices.Length];
 
@@ -246,6 +242,7 @@ internal sealed class DeviceContext : IDisposable
             };
         }
 
+        Device logicalDevice;
         fixed (DeviceQueueCreateInfo* pQueueCreateInfos = queueCreateInfos)
         {
             deviceCreateInfo.QueueCreateInfoCount = (uint)queueCreateInfos.Length;
@@ -258,16 +255,8 @@ internal sealed class DeviceContext : IDisposable
                 throw new Exception("Failed to create logical device");
         }
 
-        //Cleanup
         SilkMarshal.Free((nint)deviceCreateInfo.PpEnabledExtensionNames);
 
         return logicalDevice;
-    }
-
-    public void Dispose()
-    {
-        _vk.DestroyDevice(LogicalDevice, ReadOnlySpan<AllocationCallbacks>.Empty);
-
-        GC.SuppressFinalize(this);
     }
 }

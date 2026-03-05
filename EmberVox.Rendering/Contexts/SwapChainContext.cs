@@ -9,21 +9,19 @@ internal sealed class SwapChainContext : IDisposable
 {
     public KhrSwapchain KhrSwapChainExtension { get; }
     public SwapchainKHR SwapChainKhr { get; private set; }
-    public ImageView[] SwapChainImageViews { get; private set; }
     public Image[] SwapChainImages { get; private set; }
-
+    public ImageView[] SwapChainImageViews { get; private set; }
     public Format SwapChainImageFormat { get; }
     public Extent2D SwapChainExtent { get; private set; }
-
-    private SurfaceCapabilitiesKHR _surfaceCapabilities;
-    private readonly SurfaceFormatKHR _surfaceFormat;
-    private readonly PresentModeKHR _presentMode;
 
     private readonly Vk _vk;
     private readonly SurfaceContext _surfaceContext;
     private readonly DeviceContext _deviceContext;
     private readonly IWindow _window;
     private readonly Instance _instance;
+    private readonly SurfaceFormatKHR _surfaceFormat;
+    private readonly PresentModeKHR _presentMode;
+    private SurfaceCapabilitiesKHR _surfaceCapabilities;
 
     public SwapChainContext(
         Vk vk,
@@ -51,20 +49,40 @@ internal sealed class SwapChainContext : IDisposable
 
         _surfaceCapabilities = GetSurfaceCapabilities();
         _surfaceFormat = GetSurfaceFormat();
+        _presentMode = GetSwapChainPresentMode();
+
         SwapChainImageFormat = _surfaceFormat.Format;
         SwapChainExtent = GetSwapChainExtent();
-        _presentMode = GetSwapChainPresentMode();
         SwapChainKhr = CreateSwapChain(null);
         SwapChainImages = GetSwapChainImages();
         SwapChainImageViews = CreateSwapChainImageViews();
 
-        Logger.Metric?.WriteLine($"SwapChain Image Format: {SwapChainImageFormat.ToString()}");
+        Logger.Metric?.WriteLine($"SwapChain Image Format: {SwapChainImageFormat}");
         Logger.Metric?.WriteLine(
             $"SwapChain Extent: (x:{SwapChainExtent.Width}, y:{SwapChainExtent.Height})"
         );
-        Logger.Metric?.WriteLine($"SwapChain Present Mode: {_presentMode.ToString()}");
+        Logger.Metric?.WriteLine($"SwapChain Present Mode: {_presentMode}");
         Logger.Metric?.WriteLine($"SwapChain Images: {SwapChainImages.Length}");
         Logger.Metric?.WriteLine($"SwapChain Image Views: {SwapChainImageViews.Length}");
+    }
+
+    public void Dispose()
+    {
+        foreach (ImageView imageView in SwapChainImageViews)
+            _vk.DestroyImageView(
+                _deviceContext.LogicalDevice,
+                imageView,
+                ReadOnlySpan<AllocationCallbacks>.Empty
+            );
+
+        KhrSwapChainExtension.DestroySwapchain(
+            _deviceContext.LogicalDevice,
+            SwapChainKhr,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+        KhrSwapChainExtension.Dispose();
+
+        GC.SuppressFinalize(this);
     }
 
     public void RecreateSwapChain()
@@ -72,19 +90,16 @@ internal sealed class SwapChainContext : IDisposable
         SwapchainKHR oldSwapChain = SwapChainKhr;
 
         _surfaceCapabilities = GetSurfaceCapabilities();
-
         SwapChainExtent = GetSwapChainExtent();
-
         SwapChainKhr = CreateSwapChain(oldSwapChain);
 
         foreach (ImageView imageView in SwapChainImageViews)
-        {
             _vk.DestroyImageView(
                 _deviceContext.LogicalDevice,
                 imageView,
                 ReadOnlySpan<AllocationCallbacks>.Empty
             );
-        }
+
         KhrSwapChainExtension.DestroySwapchain(
             _deviceContext.LogicalDevice,
             oldSwapChain,
@@ -135,10 +150,6 @@ internal sealed class SwapChainContext : IDisposable
             swapchainCreateInfo.QueueFamilyIndexCount = 2;
             swapchainCreateInfo.PQueueFamilyIndices = queueFamilyIndices;
         }
-        else
-        {
-            swapchainCreateInfo.ImageSharingMode = SharingMode.Exclusive;
-        }
 
         if (
             KhrSwapChainExtension.CreateSwapchain(
@@ -166,37 +177,59 @@ internal sealed class SwapChainContext : IDisposable
 
     private SurfaceFormatKHR GetSurfaceFormat()
     {
-        Span<uint> surfaceFormatCount = stackalloc uint[1];
+        Span<uint> count = stackalloc uint[1];
         _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfaceFormats(
             _deviceContext.PhysicalDevice,
             _surfaceContext.SurfaceKhr,
-            surfaceFormatCount,
+            count,
             Span<SurfaceFormatKHR>.Empty
         );
 
-        SurfaceFormatKHR[] availableSurfaceFormats = new SurfaceFormatKHR[surfaceFormatCount[0]];
+        SurfaceFormatKHR[] formats = new SurfaceFormatKHR[count[0]];
         _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfaceFormats(
             _deviceContext.PhysicalDevice,
             _surfaceContext.SurfaceKhr,
-            surfaceFormatCount,
-            availableSurfaceFormats.AsSpan()
+            count,
+            formats.AsSpan()
         );
 
-        return ChooseSwapChainSurfaceFormat(availableSurfaceFormats);
-    }
-
-    private SurfaceFormatKHR ChooseSwapChainSurfaceFormat(SurfaceFormatKHR[] availableFormats)
-    {
-        foreach (SurfaceFormatKHR availableFormat in availableFormats)
+        foreach (SurfaceFormatKHR format in formats)
         {
             if (
-                availableFormat is
+                format is
                 { Format: Format.B8G8R8A8Srgb, ColorSpace: ColorSpaceKHR.SpaceSrgbNonlinearKhr }
             )
-                return availableFormat;
+                return format;
         }
 
-        return availableFormats[0];
+        return formats[0];
+    }
+
+    private PresentModeKHR GetSwapChainPresentMode()
+    {
+        Span<uint> count = stackalloc uint[1];
+        _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfacePresentModes(
+            _deviceContext.PhysicalDevice,
+            _surfaceContext.SurfaceKhr,
+            count,
+            Span<PresentModeKHR>.Empty
+        );
+
+        PresentModeKHR[] presentModes = new PresentModeKHR[count[0]];
+        _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfacePresentModes(
+            _deviceContext.PhysicalDevice,
+            _surfaceContext.SurfaceKhr,
+            count,
+            presentModes.AsSpan()
+        );
+
+        foreach (PresentModeKHR presentMode in presentModes)
+        {
+            if (presentMode is PresentModeKHR.MailboxKhr)
+                return presentMode;
+        }
+
+        return PresentModeKHR.FifoKhr;
     }
 
     private Extent2D GetSwapChainExtent()
@@ -223,53 +256,21 @@ internal sealed class SwapChainContext : IDisposable
         );
     }
 
-    private PresentModeKHR GetSwapChainPresentMode()
-    {
-        Span<uint> presentModeCount = stackalloc uint[1];
-        _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfacePresentModes(
-            _deviceContext.PhysicalDevice,
-            _surfaceContext.SurfaceKhr,
-            presentModeCount,
-            Span<PresentModeKHR>.Empty
-        );
-
-        PresentModeKHR[] availablePresentModes = new PresentModeKHR[presentModeCount[0]];
-        _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfacePresentModes(
-            _deviceContext.PhysicalDevice,
-            _surfaceContext.SurfaceKhr,
-            presentModeCount,
-            availablePresentModes.AsSpan()
-        );
-
-        return ChooseSwapChainPresentMode(availablePresentModes);
-    }
-
-    private PresentModeKHR ChooseSwapChainPresentMode(PresentModeKHR[] availablePresentModes)
-    {
-        foreach (PresentModeKHR availablePresentMode in availablePresentModes)
-        {
-            if (availablePresentMode is PresentModeKHR.MailboxKhr)
-                return availablePresentMode;
-        }
-
-        return PresentModeKHR.FifoKhr;
-    }
-
     private Image[] GetSwapChainImages()
     {
-        Span<uint> imageCount = stackalloc uint[1];
+        Span<uint> count = stackalloc uint[1];
         KhrSwapChainExtension.GetSwapchainImages(
             _deviceContext.LogicalDevice,
             SwapChainKhr,
-            imageCount,
+            count,
             Span<Image>.Empty
         );
 
-        Image[] images = new Image[imageCount[0]];
+        Image[] images = new Image[count[0]];
         KhrSwapChainExtension.GetSwapchainImages(
             _deviceContext.LogicalDevice,
             SwapChainKhr,
-            imageCount,
+            count,
             images.AsSpan()
         );
 
@@ -280,7 +281,7 @@ internal sealed class SwapChainContext : IDisposable
     {
         ImageView[] imageViews = new ImageView[SwapChainImages.Length];
 
-        ImageViewCreateInfo imageViewCreateInfo = new()
+        ImageViewCreateInfo createInfo = new()
         {
             SType = StructureType.ImageViewCreateInfo,
             ViewType = ImageViewType.Type2D,
@@ -290,12 +291,12 @@ internal sealed class SwapChainContext : IDisposable
 
         for (int i = 0; i < SwapChainImages.Length; i++)
         {
-            imageViewCreateInfo.Image = SwapChainImages[i];
+            createInfo.Image = SwapChainImages[i];
 
             if (
                 _vk.CreateImageView(
                     _deviceContext.LogicalDevice,
-                    &imageViewCreateInfo,
+                    &createInfo,
                     null,
                     out imageViews[i]
                 ) != Result.Success
@@ -304,26 +305,5 @@ internal sealed class SwapChainContext : IDisposable
         }
 
         return imageViews;
-    }
-
-    public void Dispose()
-    {
-        foreach (var imageView in SwapChainImageViews)
-        {
-            _vk.DestroyImageView(
-                _deviceContext.LogicalDevice,
-                imageView,
-                ReadOnlySpan<AllocationCallbacks>.Empty
-            );
-        }
-
-        KhrSwapChainExtension.DestroySwapchain(
-            _deviceContext.LogicalDevice,
-            SwapChainKhr,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
-        KhrSwapChainExtension.Dispose();
-
-        GC.SuppressFinalize(this);
     }
 }

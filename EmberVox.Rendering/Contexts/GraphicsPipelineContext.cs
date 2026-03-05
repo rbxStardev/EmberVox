@@ -11,9 +11,8 @@ internal sealed class GraphicsPipelineContext : IDisposable
     private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
-    private readonly List<ShaderModule> _shaderModules;
-
     private readonly PipelineLayout _pipelineLayout;
+    private readonly List<ShaderModule> _shaderModules;
 
     public unsafe GraphicsPipelineContext(
         Vk vk,
@@ -54,6 +53,28 @@ internal sealed class GraphicsPipelineContext : IDisposable
         SilkMarshal.FreeString((nint)fragShaderStageInfo.PName);
     }
 
+    public void Dispose()
+    {
+        _vk.DestroyPipeline(
+            _deviceContext.LogicalDevice,
+            GraphicsPipeline,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+        _vk.DestroyPipelineLayout(
+            _deviceContext.LogicalDevice,
+            _pipelineLayout,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+        foreach (ShaderModule shaderModule in _shaderModules)
+            _vk.DestroyShaderModule(
+                _deviceContext.LogicalDevice,
+                shaderModule,
+                ReadOnlySpan<AllocationCallbacks>.Empty
+            );
+
+        GC.SuppressFinalize(this);
+    }
+
     private unsafe PipelineLayout CreatePipelineLayout()
     {
         PipelineLayoutCreateInfo pipelineLayoutInfo = new()
@@ -72,9 +93,7 @@ internal sealed class GraphicsPipelineContext : IDisposable
                 new Span<PipelineLayout>(ref pipelineLayout)
             ) != Result.Success
         )
-        {
             throw new Exception("Failed to create pipeline layout.");
-        }
 
         return pipelineLayout;
     }
@@ -94,6 +113,7 @@ internal sealed class GraphicsPipelineContext : IDisposable
             VertexInputBindingDescription bindingDescription = Vertex.GetBindingDescription();
             VertexInputAttributeDescription[] attributeDescriptions =
                 Vertex.GetAttributeDescriptions();
+
             fixed (VertexInputAttributeDescription* pAttributeDescriptions = attributeDescriptions)
             {
                 PipelineVertexInputStateCreateInfo vertexInputInfo = new()
@@ -110,17 +130,6 @@ internal sealed class GraphicsPipelineContext : IDisposable
                     SType = StructureType.PipelineInputAssemblyStateCreateInfo,
                     Topology = PrimitiveTopology.TriangleList,
                 };
-
-                Viewport viewport = new(
-                    0.0f,
-                    0.0f,
-                    _swapChainContext.SwapChainExtent.Width,
-                    _swapChainContext.SwapChainExtent.Height,
-                    0.0f,
-                    1.0f
-                );
-
-                Rect2D rect2D = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
 
                 PipelineViewportStateCreateInfo viewportState = new()
                 {
@@ -151,20 +160,19 @@ internal sealed class GraphicsPipelineContext : IDisposable
 
                 PipelineColorBlendAttachmentState colorBlendAttachment = new()
                 {
-                    BlendEnable = Vk.False,
                     ColorWriteMask =
                         ColorComponentFlags.RBit
                         | ColorComponentFlags.GBit
                         | ColorComponentFlags.BBit
                         | ColorComponentFlags.ABit,
+                    BlendEnable = Vk.True,
+                    SrcColorBlendFactor = BlendFactor.SrcAlpha,
+                    DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
+                    ColorBlendOp = BlendOp.Add,
+                    SrcAlphaBlendFactor = BlendFactor.One,
+                    DstAlphaBlendFactor = BlendFactor.Zero,
+                    AlphaBlendOp = BlendOp.Add,
                 };
-                colorBlendAttachment.BlendEnable = Vk.True;
-                colorBlendAttachment.SrcColorBlendFactor = BlendFactor.SrcAlpha;
-                colorBlendAttachment.DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha;
-                colorBlendAttachment.ColorBlendOp = BlendOp.Add;
-                colorBlendAttachment.SrcAlphaBlendFactor = BlendFactor.One;
-                colorBlendAttachment.DstAlphaBlendFactor = BlendFactor.Zero;
-                colorBlendAttachment.AlphaBlendOp = BlendOp.Add;
 
                 PipelineColorBlendStateCreateInfo colorBlending = new()
                 {
@@ -212,9 +220,7 @@ internal sealed class GraphicsPipelineContext : IDisposable
                             new Span<Pipeline>(ref pipeline)
                         ) != Result.Success
                     )
-                    {
                         throw new Exception("Failed to create graphics pipeline.");
-                    }
 
                     return pipeline;
                 }
@@ -244,34 +250,8 @@ internal sealed class GraphicsPipelineContext : IDisposable
             )
                 throw new Exception("Failed to create shader module.");
         }
+
         _shaderModules.Add(shaderModule);
-
         return shaderModule;
-    }
-
-    public void Dispose()
-    {
-        _vk.DestroyPipeline(
-            _deviceContext.LogicalDevice,
-            GraphicsPipeline,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
-
-        _vk.DestroyPipelineLayout(
-            _deviceContext.LogicalDevice,
-            _pipelineLayout,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
-
-        foreach (ShaderModule shaderModule in _shaderModules)
-        {
-            _vk.DestroyShaderModule(
-                _deviceContext.LogicalDevice,
-                shaderModule,
-                ReadOnlySpan<AllocationCallbacks>.Empty
-            );
-        }
-
-        GC.SuppressFinalize(this);
     }
 }

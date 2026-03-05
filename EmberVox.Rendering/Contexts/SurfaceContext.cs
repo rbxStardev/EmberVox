@@ -9,7 +9,7 @@ internal sealed class SurfaceContext : IDisposable
     public KhrSurface KhrSurfaceExtension { get; }
     public SurfaceKHR SurfaceKhr { get; }
 
-    private Vk _vk;
+    private readonly Vk _vk;
     private readonly Instance _instance;
     private readonly IWindow _window;
 
@@ -21,16 +21,9 @@ internal sealed class SurfaceContext : IDisposable
 
         if (!_vk.TryGetInstanceExtension(_instance, out KhrSurface khrSurfaceExtension))
             throw new Exception("Failed to get KhrSurface extension");
+
         KhrSurfaceExtension = khrSurfaceExtension;
-
         SurfaceKhr = CreateSurface();
-    }
-
-    private unsafe SurfaceKHR CreateSurface()
-    {
-        return _window
-            .VkSurface!.Create<AllocationCallbacks>(_instance.ToHandle(), null)
-            .ToSurface();
     }
 
     public void Dispose()
@@ -44,4 +37,7 @@ internal sealed class SurfaceContext : IDisposable
 
         GC.SuppressFinalize(this);
     }
+
+    private unsafe SurfaceKHR CreateSurface() =>
+        _window.VkSurface!.Create<AllocationCallbacks>(_instance.ToHandle(), null).ToSurface();
 }
