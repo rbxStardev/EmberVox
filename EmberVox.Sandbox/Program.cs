@@ -1,4 +1,4 @@
-﻿using EmberVox.Logging;
+﻿using EmberVox.Core.Logging;
 using EmberVox.Platform;
 using EmberVox.Rendering;
 

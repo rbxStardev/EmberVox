@@ -1,9 +1,10 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using EmberVox.Core;
+using EmberVox.Core.Extensions;
 using Silk.NET.Vulkan;
 
-namespace EmberVox.Rendering;
+namespace EmberVox.Rendering.Types;
 
 public struct Vertex
 {

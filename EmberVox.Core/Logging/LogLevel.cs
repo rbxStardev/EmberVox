@@ -1,4 +1,4 @@
-namespace EmberVox.Logging;
+namespace EmberVox.Core.Logging;
 
 public enum LogLevel
 {

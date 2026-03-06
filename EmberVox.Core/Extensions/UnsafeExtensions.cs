@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace EmberVox.Core;
+namespace EmberVox.Core.Extensions;
 
 public static unsafe class UnsafeExtensions
 {

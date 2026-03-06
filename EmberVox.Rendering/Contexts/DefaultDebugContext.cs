@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using EmberVox.Logging;
+using EmberVox.Core.Logging;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 

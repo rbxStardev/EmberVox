@@ -1,11 +1,9 @@
-using EmberVox.Logging;
-using EmberVox.Rendering;
-using EmberVox.Rendering.Contexts;
+using EmberVox.Core.Logging;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 
-namespace EmberVox;
+namespace EmberVox.Rendering.Contexts;
 
 internal sealed class DeviceContext : IDisposable
 {

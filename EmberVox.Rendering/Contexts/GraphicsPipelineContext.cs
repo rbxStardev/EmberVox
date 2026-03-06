@@ -1,4 +1,5 @@
-using EmberVox.Logging;
+using EmberVox.Core.Logging;
+using EmberVox.Rendering.Types;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan;
 

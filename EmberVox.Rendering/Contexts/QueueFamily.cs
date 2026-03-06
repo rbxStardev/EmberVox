@@ -1,6 +1,6 @@
 using Silk.NET.Vulkan;
 
-namespace EmberVox.Rendering;
+namespace EmberVox.Rendering.Contexts;
 
 internal struct QueueFamily
 {

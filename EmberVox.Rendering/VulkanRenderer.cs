@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Numerics;
 using EmberVox.Core;
-using EmberVox.Logging;
+using EmberVox.Core.Extensions;
+using EmberVox.Core.Logging;
 using EmberVox.Rendering.Contexts;
+using EmberVox.Rendering.Types;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
 using Silk.NET.Maths;

@@ -1,9 +1,9 @@
-using EmberVox.Logging;
+using EmberVox.Core.Logging;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
 
-namespace EmberVox;
+namespace EmberVox.Rendering.Contexts;
 
 internal sealed class SwapChainContext : IDisposable
 {

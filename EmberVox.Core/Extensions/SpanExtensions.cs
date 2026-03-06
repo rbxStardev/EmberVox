@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
 
-namespace EmberVox.Core;
+namespace EmberVox.Core.Extensions;
 
-public static class ReadonlySpanExtensions
+public static class SpanExtensions
 {
     /*
     public static ReadOnlySpan<byte> AsBytes<T>(this ReadOnlySpan<T> readOnlySpan)
