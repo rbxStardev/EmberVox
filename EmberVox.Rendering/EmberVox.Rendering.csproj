@@ -17,21 +17,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content
-      Include="$(ProjectDir)Shaders\*.spv"
-      Condition="Exists('$(ProjectDir)Shaders\slang.spv')"
-    >
+    <Content Include="Shaders\slang.spv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Shaders\slang.spv</Link>
     </Content>
   </ItemGroup>
 
-  <Target Name="CompileSlangShaders" BeforeTargets="BeforeBuild">
-    <Message Importance="high" Text="--- [Slang] Compiling Shaders for EmberVox ---" />
-
+  <Target Name="CompileSlangShaders" BeforeTargets="AssignTargetPaths">
+    <Message Importance="high" Text="--- [Slang] Compiling Shaders ---" />
     <MakeDir Directories="$(ProjectDir)Shaders" />
-
-    <Exec Command="/opt/shader-slang-bin/bin/slangc $(ProjectDir)Shaders/shader.slang -target spirv -profile spirv_1_4 -emit-spirv-directly -fvk-use-entrypoint-name -entry vertMain -entry fragMain -o $(ProjectDir)Shaders/slang.spv" />
-
-    <Message Importance="high" Text="--- [Slang] Compilation Finished ---" />
+    <Exec Command="slangc $(ProjectDir)Shaders/shader.slang -target spirv -profile spirv_1_4 -emit-spirv-directly -fvk-use-entrypoint-name -entry vertMain -entry fragMain -o $(ProjectDir)Shaders/slang.spv" />
   </Target>
 </Project>

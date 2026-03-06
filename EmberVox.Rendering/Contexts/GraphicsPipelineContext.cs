@@ -26,7 +26,9 @@ internal sealed class GraphicsPipelineContext : IDisposable
         _swapChainContext = swapChainContext;
         _shaderModules = [];
 
-        byte[] shaderCode = File.ReadAllBytes("Shaders/slang.spv");
+        byte[] shaderCode = File.ReadAllBytes(
+            Path.Combine(AppContext.BaseDirectory, "Shaders", "slang.spv")
+        );
         ShaderModule shaderModule = CreateShaderModule(shaderCode);
         Logger.Metric?.WriteLine($"Created shader module of size: {shaderCode.Length} bytes");
 
