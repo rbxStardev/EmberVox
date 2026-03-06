@@ -28,7 +28,6 @@ internal sealed class GraphicsPipelineContext : IDisposable
 
         byte[] shaderCode = File.ReadAllBytes("Shaders/slang.spv");
         ShaderModule shaderModule = CreateShaderModule(shaderCode);
-        Logger.Metric?.WriteLine($"Created shader module of size: {shaderCode.Length} bytes");
 
         PipelineShaderStageCreateInfo vertShaderStageInfo = new()
         {
@@ -253,6 +252,8 @@ internal sealed class GraphicsPipelineContext : IDisposable
         }
 
         _shaderModules.Add(shaderModule);
+        Logger.Metric?.WriteLine($"Created shader module of size: {shaderCode.Length} bytes");
+        
         return shaderModule;
     }
 }

@@ -1,3 +1,4 @@
+using EmberVox.Core.Logging;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
 
@@ -37,6 +38,7 @@ internal sealed class BufferContext : IDisposable
         _vk.BindBufferMemory(_deviceContext.LogicalDevice, Buffer, _deviceMemory, 0);
 
         if (memoryPropertyFlags.HasFlag(MemoryPropertyFlags.HostVisibleBit))
+        {
             _vk.MapMemory(
                 _deviceContext.LogicalDevice,
                 _deviceMemory,
@@ -45,6 +47,10 @@ internal sealed class BufferContext : IDisposable
                 MemoryMapFlags.None,
                 ref _mappedPointer
             );
+            
+            Logger.Metric?.WriteLine("-> Buffer created is visible to host");
+        }
+        Console.WriteLine();
     }
 
     public unsafe void Dispose()
@@ -84,6 +90,10 @@ internal sealed class BufferContext : IDisposable
             ) != Result.Success
         )
             throw new Exception("Failed to create buffer");
+        
+        Logger.Metric?.WriteLine("Created buffer, listing properties...");
+        Logger.Metric?.WriteLine($"-> Buffer size: {_size} bytes");
+        Logger.Metric?.WriteLine($"-> Buffer usage: {usage}");
 
         return buffer;
     }

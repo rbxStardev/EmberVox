@@ -187,19 +187,42 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Debug?.WriteLine("Application closed, disposing...");
 
         if (EnableValidationLayers)
+        {
             _debugContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed DebugContext");
+        }
 
-        _indexBuffer.Dispose();
-        _vertexBuffer.Dispose();
-        _syncContext.Dispose();
-        _commandContext.Dispose();
-        _graphicsPipelineContext.Dispose();
-        _swapChainContext.Dispose();
-        _surfaceContext.Dispose();
-        _deviceContext.Dispose();
+        {
+            _indexBuffer.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed IndexBuffer");
+            
+            _vertexBuffer.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed VertexBuffer");
+            
+            _syncContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed SyncContext");
+            
+            _commandContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed CommandContext");
+            
+            _graphicsPipelineContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed GraphicsPipelineContext");
+            
+            _swapChainContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed SwapChainContext");
+            
+            _surfaceContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed SurfaceContext");
+            
+            _deviceContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed DeviceContext");
+        }
 
         _vk.DestroyInstance(_instance, ReadOnlySpan<AllocationCallbacks>.Empty);
+        Logger.Debug?.WriteLine("-> Disposed Vulkan Instance");
+        
         _vk.Dispose();
+        Logger.Debug?.WriteLine("-> Disposed Vulkan API");
 
         Logger.Debug?.WriteLine("Application successfully disposed, exiting...");
 
@@ -392,11 +415,7 @@ public sealed class VulkanRenderer : IDisposable
 
         foreach (string required in ValidationLayers)
         {
-            if (
-                !availableLayers.Any(layer =>
-                    SilkMarshal.PtrToString((nint)layer.LayerName) == required
-                )
-            )
+            if (availableLayers.All(layer => SilkMarshal.PtrToString((nint)layer.LayerName) != required))
             {
                 Logger.Warning?.WriteLine($"Validation layer not supported: {required}");
                 return false;
@@ -443,11 +462,7 @@ public sealed class VulkanRenderer : IDisposable
 
         foreach (string requiredName in required)
         {
-            if (
-                !extensionProperties.Any(prop =>
-                    SilkMarshal.PtrToString((nint)prop.ExtensionName) == requiredName
-                )
-            )
+            if (extensionProperties.All(prop => SilkMarshal.PtrToString((nint)prop.ExtensionName) != requiredName))
             {
                 Logger.Warning?.WriteLine($"Extension not supported: {requiredName}");
                 return false;
