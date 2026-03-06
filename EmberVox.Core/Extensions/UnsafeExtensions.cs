@@ -25,4 +25,10 @@ public static unsafe class UnsafeExtensions
             return offset >= 0x0 && offset < sizeof(T) ? offset : -1;
         }
     }
+
+    extension<T>(ref T data)
+        where T : unmanaged
+    {
+        public Span<byte> AsBytes() => new Span<T>(ref data).AsBytes();
+    }
 }
