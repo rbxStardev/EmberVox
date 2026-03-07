@@ -214,6 +214,12 @@ public sealed class VulkanRenderer : IDisposable
             _descriptorContext.Dispose();
             Logger.Debug?.WriteLine("-> Disposed DescriptorContext");
 
+            foreach (BufferContext uniformBuffer in _uniformBuffers)
+            {
+                uniformBuffer.Dispose();
+                Logger.Debug?.WriteLine("-> Disposed UniformBuffer");
+            }
+
             _indexBuffer.Dispose();
             Logger.Debug?.WriteLine("-> Disposed IndexBuffer");
 
@@ -336,7 +342,7 @@ public sealed class VulkanRenderer : IDisposable
             new ReadOnlySpan<SubmitInfo>(ref submitInfo),
             drawFence
         );
-        Logger.Info?.WriteLine($"QueueSubmit: {submitResult}");
+        //Logger.Info?.WriteLine($"QueueSubmit: {submitResult}");
 
         PresentInfoKHR presentInfoKhr = new()
         {
@@ -425,9 +431,9 @@ public sealed class VulkanRenderer : IDisposable
         uniformBufferObject.Proj = proj;
 
         uniformBufferObject.AsBytes().CopyTo(_uniformBuffers[currentImage].MappedMemory);
-        Console.WriteLine(
+        /*Console.WriteLine(
             $"Updating UBO frame {currentImage}, time: {time}, content: {_uniformBuffers[currentImage].MappedMemory.ToString()}]"
-        );
+        );*/
     }
 
     private unsafe Instance CreateInstance()

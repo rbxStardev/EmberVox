@@ -61,7 +61,7 @@ internal sealed class CommandContext : IDisposable
             commandBuffer,
             new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
         );
-        Logger.Info?.WriteLine($"BeginCommandBuffer: {beginResult}");
+        //Logger.Info?.WriteLine($"BeginCommandBuffer: {beginResult}");
 
         TransitionImageLayout(
             commandBuffer,
@@ -105,7 +105,7 @@ internal sealed class CommandContext : IDisposable
             PipelineBindPoint.Graphics,
             _graphicsPipelineContext.GraphicsPipeline
         );
-        Console.WriteLine($"Drawing frame, imageIndex: {imageIndex}, currentFrame: {currentFrame}");
+        //Console.WriteLine($"Drawing frame, imageIndex: {imageIndex}, currentFrame: {currentFrame}");
 
         Buffer vertexBufferBuffer = vertexBuffer.Buffer;
         _vk.CmdBindVertexBuffers(
@@ -156,7 +156,7 @@ internal sealed class CommandContext : IDisposable
         );
 
         var endResult = _vk.EndCommandBuffer(commandBuffer);
-        Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
+        //Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
     }
 
     public unsafe void CopyBuffer(BufferContext srcBuffer, BufferContext dstBuffer, ulong size)

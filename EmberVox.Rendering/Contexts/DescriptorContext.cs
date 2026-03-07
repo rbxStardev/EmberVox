@@ -33,6 +33,12 @@ internal sealed class DescriptorContext : IDisposable
 
     public void Dispose()
     {
+        _vk.DestroyDescriptorPool(
+            _deviceContext.LogicalDevice,
+            _descriptorPool,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+
         GC.SuppressFinalize(this);
     }
 
