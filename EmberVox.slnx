@@ -1,6 +1,6 @@
 <Solution>
-  <Project Path="EmberVox.Core/EmberVox.Core.csproj" />
-  <Project Path="EmberVox.Platform/EmberVox.Platform.csproj" />
-  <Project Path="EmberVox.Rendering/EmberVox.Rendering.csproj" />
-  <Project Path="EmberVox.Sandbox/EmberVox.Sandbox.csproj" />
+  <Project Path="src/EmberVox.Core/EmberVox.Core.csproj" />
+  <Project Path="src/EmberVox.Platform/EmberVox.Platform.csproj" />
+  <Project Path="src/EmberVox.Rendering/EmberVox.Rendering.csproj" />
+  <Project Path="src/EmberVox.Sandbox/EmberVox.Sandbox.csproj" />
 </Solution>
