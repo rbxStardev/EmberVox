@@ -120,7 +120,6 @@ public sealed class VulkanRenderer : IDisposable
                 _deviceContext,
                 _swapChainContext,
                 _graphicsPipelineContext,
-                _descriptorContext,
                 MaxFramesInFlight
             );
             _syncContext = new SyncContext(
@@ -196,7 +195,7 @@ public sealed class VulkanRenderer : IDisposable
             _vk,
             _deviceContext,
             _graphicsPipelineContext,
-            MaxFramesInFlight,
+            (uint)_swapChainContext.SwapChainImages.Length,
             _uniformBuffers
         );
     }
@@ -317,7 +316,7 @@ public sealed class VulkanRenderer : IDisposable
             _indexBuffer
         );
 
-        UpdateUniformBuffer(_frameIndex);
+        UpdateUniformBuffer((int)imageIndex);
 
         PipelineStageFlags waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
         SubmitInfo submitInfo = new()
@@ -332,11 +331,12 @@ public sealed class VulkanRenderer : IDisposable
             PSignalSemaphores = &renderFinishedSemaphore,
         };
 
-        _vk.QueueSubmit(
+        var submitResult = _vk.QueueSubmit(
             _deviceContext.GraphicsQueue.Queue,
             new ReadOnlySpan<SubmitInfo>(ref submitInfo),
             drawFence
         );
+        Logger.Info?.WriteLine($"QueueSubmit: {submitResult}");
 
         PresentInfoKHR presentInfoKhr = new()
         {
@@ -383,7 +383,7 @@ public sealed class VulkanRenderer : IDisposable
     {
         ulong bufferSize = (ulong)Unsafe.SizeOf<UniformBufferObject>();
 
-        for (int i = 0; i < MaxFramesInFlight; i++)
+        for (int i = 0; i < _swapChainContext.SwapChainImages.Length; i++)
         {
             BufferContext uniformBuffer = new BufferContext(
                 _vk,
@@ -399,26 +399,30 @@ public sealed class VulkanRenderer : IDisposable
     {
         float time = (float)(Stopwatch.GetTimestamp() - StartTime) / Stopwatch.Frequency;
 
-        UniformBufferObject uniformBufferObject = new();
-        uniformBufferObject.Model = Matrix4x4.CreateRotationZ(time * float.DegreesToRadians(90.0f));
-        uniformBufferObject.View = Matrix4x4.CreateLookAt(
-            new Vector3(2.0f, 2.0f, 2.0f),
-            Vector3.Zero,
-            Vector3.UnitZ
-        );
-        uniformBufferObject.Proj = Matrix4x4.CreatePerspectiveFieldOfView(
-            float.DegreesToRadians(90.0f),
-            (float)_swapChainContext.SwapChainExtent.Width
-                / _swapChainContext.SwapChainExtent.Height,
-            0.1f,
-            1.0f
-        );
+        UniformBufferObject uniformBufferObject = new()
+        {
+            Model = Matrix4x4.CreateRotationZ(float.DegreesToRadians(90.0f)),
+            View = Matrix4x4.CreateLookAt(
+                new Vector3(2.0f, 2.0f, 2.0f),
+                Vector3.Zero,
+                Vector3.UnitZ
+            ),
+            Proj = Matrix4x4.CreatePerspectiveFieldOfView(
+                float.DegreesToRadians(90.0f),
+                (float)_swapChainContext.SwapChainExtent.Width
+                    / _swapChainContext.SwapChainExtent.Height,
+                0.1f,
+                1.0f
+            ),
+        };
         var proj = uniformBufferObject.Proj;
         proj.M22 *= -1;
         uniformBufferObject.Proj = proj;
 
         uniformBufferObject.AsBytes().CopyTo(_uniformBuffers[currentImage].MappedMemory);
-        Console.WriteLine($"Updating UBO frame {currentImage}, time: {time}");
+        Console.WriteLine(
+            $"Updating UBO frame {currentImage}, time: {time}, content: {_uniformBuffers[currentImage].MappedMemory.ToString()}]"
+        );
     }
 
     private unsafe Instance CreateInstance()

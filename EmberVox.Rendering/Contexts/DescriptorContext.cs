@@ -1,9 +1,8 @@
 using System.Runtime.CompilerServices;
-using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.Types;
 using Silk.NET.Vulkan;
 
-namespace EmberVox.Rendering;
+namespace EmberVox.Rendering.Contexts;
 
 internal sealed class DescriptorContext : IDisposable
 {

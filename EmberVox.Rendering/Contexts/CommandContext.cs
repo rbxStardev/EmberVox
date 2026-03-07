@@ -1,3 +1,4 @@
+using EmberVox.Core.Logging;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
 
@@ -19,7 +20,6 @@ internal sealed class CommandContext : IDisposable
         DeviceContext deviceContext,
         SwapChainContext swapChainContext,
         GraphicsPipelineContext graphicsPipelineContext,
-        DescriptorContext descriptorContext,
         uint maxFramesInFlight
     )
     {
@@ -57,10 +57,11 @@ internal sealed class CommandContext : IDisposable
         CommandBuffer commandBuffer = CommandBuffers[currentFrame];
 
         CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
-        _vk.BeginCommandBuffer(
+        var beginResult = _vk.BeginCommandBuffer(
             commandBuffer,
             new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
         );
+        Logger.Info?.WriteLine($"BeginCommandBuffer: {beginResult}");
 
         TransitionImageLayout(
             commandBuffer,
@@ -104,6 +105,7 @@ internal sealed class CommandContext : IDisposable
             PipelineBindPoint.Graphics,
             _graphicsPipelineContext.GraphicsPipeline
         );
+        Console.WriteLine($"Drawing frame, imageIndex: {imageIndex}, currentFrame: {currentFrame}");
 
         Buffer vertexBufferBuffer = vertexBuffer.Buffer;
         _vk.CmdBindVertexBuffers(
@@ -129,7 +131,7 @@ internal sealed class CommandContext : IDisposable
         Rect2D scissor = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
         _vk.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
 
-        DescriptorSet descriptorSet = descriptorContext[currentFrame];
+        DescriptorSet descriptorSet = descriptorContext[(int)imageIndex];
         _vk.CmdBindDescriptorSets(
             commandBuffer,
             PipelineBindPoint.Graphics,
@@ -153,7 +155,8 @@ internal sealed class CommandContext : IDisposable
             PipelineStageFlags2.BottomOfPipeBit
         );
 
-        _vk.EndCommandBuffer(commandBuffer);
+        var endResult = _vk.EndCommandBuffer(commandBuffer);
+        Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
     }
 
     public unsafe void CopyBuffer(BufferContext srcBuffer, BufferContext dstBuffer, ulong size)
