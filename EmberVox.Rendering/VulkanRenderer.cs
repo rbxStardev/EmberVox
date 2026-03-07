@@ -26,7 +26,7 @@ public sealed class VulkanRenderer : IDisposable
         new() { Position = new Vector2(-0.5f, -0.5f), Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f) },
         new() { Position = new Vector2(0.5f, -0.5f), Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f) },
         new() { Position = new Vector2(0.5f, 0.5f), Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f) },
-        new() { Position = new Vector2(-0.5f, 0.5f), Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f) },
+        new() { Position = new Vector2(-0.5f, 0.5f), Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f) }, // Top Left
     ];
 
     private static readonly uint[] Indices = [0, 1, 2, 2, 3, 0];
@@ -398,25 +398,30 @@ public sealed class VulkanRenderer : IDisposable
     private void UpdateUniformBuffer(int currentImage)
     {
         float time = (float)(Stopwatch.GetTimestamp() - StartTime) / Stopwatch.Frequency;
+        Vector3 cameraPosition = new Vector3(0.0f, 0.0f, 0f);
+        float yaw = float.DegreesToRadians(0.0f);
+        float pitch = float.DegreesToRadians(0.0f);
+        float roll = float.DegreesToRadians(45.0f * time);
 
         UniformBufferObject uniformBufferObject = new()
         {
-            Model = Matrix4x4.CreateRotationZ(float.DegreesToRadians(90.0f)),
-            View = Matrix4x4.CreateLookAt(
-                new Vector3(2.0f, 2.0f, 2.0f),
-                Vector3.Zero,
-                Vector3.UnitZ
-            ),
+            Model =
+                Matrix4x4.CreateFromQuaternion(
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, float.Pi)
+                )
+                * Matrix4x4.CreateFromYawPitchRoll(yaw, pitch, roll)
+                * Matrix4x4.CreateTranslation(Vector3.UnitZ + cameraPosition),
+            View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
             Proj = Matrix4x4.CreatePerspectiveFieldOfView(
-                float.DegreesToRadians(90.0f),
+                float.DegreesToRadians(70.0f),
                 (float)_swapChainContext.SwapChainExtent.Width
                     / _swapChainContext.SwapChainExtent.Height,
                 0.1f,
-                1.0f
+                500.0f
             ),
         };
         var proj = uniformBufferObject.Proj;
-        proj.M22 *= -1;
+        proj.M22 *= -1; // Flip Y (DO NOT TURN OFFFFFF)
         uniformBufferObject.Proj = proj;
 
         uniformBufferObject.AsBytes().CopyTo(_uniformBuffers[currentImage].MappedMemory);
