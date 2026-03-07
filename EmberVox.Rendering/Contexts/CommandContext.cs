@@ -1,3 +1,4 @@
+using EmberVox.Core.Logging;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
 
@@ -46,6 +47,7 @@ internal sealed class CommandContext : IDisposable
     }
 
     public unsafe void RecordCommandBuffer(
+        DescriptorContext descriptorContext,
         uint imageIndex,
         int currentFrame,
         BufferContext vertexBuffer,
@@ -55,10 +57,11 @@ internal sealed class CommandContext : IDisposable
         CommandBuffer commandBuffer = CommandBuffers[currentFrame];
 
         CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
-        _vk.BeginCommandBuffer(
+        var beginResult = _vk.BeginCommandBuffer(
             commandBuffer,
             new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
         );
+        //Logger.Info?.WriteLine($"BeginCommandBuffer: {beginResult}");
 
         TransitionImageLayout(
             commandBuffer,
@@ -71,7 +74,7 @@ internal sealed class CommandContext : IDisposable
             PipelineStageFlags2.ColorAttachmentOutputBit
         );
 
-        ClearValue clearColor = new(new ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
+        ClearValue clearColor = new(new ClearColorValue(255.0f, 0.0f, 255.0f, 1.0f));
         RenderingAttachmentInfo attachmentInfo = new()
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -102,6 +105,7 @@ internal sealed class CommandContext : IDisposable
             PipelineBindPoint.Graphics,
             _graphicsPipelineContext.GraphicsPipeline
         );
+        //Console.WriteLine($"Drawing frame, imageIndex: {imageIndex}, currentFrame: {currentFrame}");
 
         Buffer vertexBufferBuffer = vertexBuffer.Buffer;
         _vk.CmdBindVertexBuffers(
@@ -127,6 +131,15 @@ internal sealed class CommandContext : IDisposable
         Rect2D scissor = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
         _vk.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
 
+        DescriptorSet descriptorSet = descriptorContext[(int)imageIndex];
+        _vk.CmdBindDescriptorSets(
+            commandBuffer,
+            PipelineBindPoint.Graphics,
+            _graphicsPipelineContext.PipelineLayout,
+            0,
+            new ReadOnlySpan<DescriptorSet>(ref descriptorSet),
+            ReadOnlySpan<uint>.Empty
+        );
         _vk.CmdDrawIndexed(commandBuffer, 6, 1, 0, 0, 0);
 
         _vk.CmdEndRendering(commandBuffer);
@@ -142,7 +155,8 @@ internal sealed class CommandContext : IDisposable
             PipelineStageFlags2.BottomOfPipeBit
         );
 
-        _vk.EndCommandBuffer(commandBuffer);
+        var endResult = _vk.EndCommandBuffer(commandBuffer);
+        //Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
     }
 
     public unsafe void CopyBuffer(BufferContext srcBuffer, BufferContext dstBuffer, ulong size)

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using EmberVox.Core;
 using EmberVox.Core.Extensions;
 using EmberVox.Core.Logging;
@@ -25,12 +26,14 @@ public sealed class VulkanRenderer : IDisposable
         new() { Position = new Vector2(-0.5f, -0.5f), Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f) },
         new() { Position = new Vector2(0.5f, -0.5f), Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f) },
         new() { Position = new Vector2(0.5f, 0.5f), Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f) },
-        new() { Position = new Vector2(-0.5f, 0.5f), Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f) },
+        new() { Position = new Vector2(-0.5f, 0.5f), Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f) }, // Top Left
     ];
 
     private static readonly uint[] Indices = [0, 1, 2, 2, 3, 0];
 
     private static readonly string[] ValidationLayers = ["VK_LAYER_KHRONOS_validation"];
+
+    private static readonly long StartTime = Stopwatch.GetTimestamp();
 
     private const int MaxFramesInFlight = 2;
 #if DEBUG
@@ -51,6 +54,8 @@ public sealed class VulkanRenderer : IDisposable
     private readonly SyncContext _syncContext;
     private readonly BufferContext _vertexBuffer;
     private readonly BufferContext _indexBuffer;
+    private readonly List<BufferContext> _uniformBuffers;
+    private readonly DescriptorContext _descriptorContext;
 
     private int _frameIndex;
     private bool _frameBufferResized;
@@ -176,10 +181,23 @@ public sealed class VulkanRenderer : IDisposable
 
             _commandContext.CopyBuffer(stagingBuffer, _indexBuffer, indexBufferSize);
             stagingBuffer.Dispose();
+
+            // Uniforms
+
+            _uniformBuffers = [];
+            CreateUniformBuffers();
         }
 
         Logger.Info?.WriteLine("~ Buffers successfully initialized. ~");
         Console.WriteLine();
+
+        _descriptorContext = new DescriptorContext(
+            _vk,
+            _deviceContext,
+            _graphicsPipelineContext,
+            (uint)_swapChainContext.SwapChainImages.Length,
+            _uniformBuffers
+        );
     }
 
     public void Dispose()
@@ -187,19 +205,51 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Debug?.WriteLine("Application closed, disposing...");
 
         if (EnableValidationLayers)
+        {
             _debugContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed DebugContext");
+        }
 
-        _indexBuffer.Dispose();
-        _vertexBuffer.Dispose();
-        _syncContext.Dispose();
-        _commandContext.Dispose();
-        _graphicsPipelineContext.Dispose();
-        _swapChainContext.Dispose();
-        _surfaceContext.Dispose();
-        _deviceContext.Dispose();
+        {
+            _descriptorContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed DescriptorContext");
+
+            foreach (BufferContext uniformBuffer in _uniformBuffers)
+            {
+                uniformBuffer.Dispose();
+                Logger.Debug?.WriteLine("-> Disposed UniformBuffer");
+            }
+
+            _indexBuffer.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed IndexBuffer");
+
+            _vertexBuffer.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed VertexBuffer");
+
+            _syncContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed SyncContext");
+
+            _commandContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed CommandContext");
+
+            _graphicsPipelineContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed GraphicsPipelineContext");
+
+            _swapChainContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed SwapChainContext");
+
+            _surfaceContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed SurfaceContext");
+
+            _deviceContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed DeviceContext");
+        }
 
         _vk.DestroyInstance(_instance, ReadOnlySpan<AllocationCallbacks>.Empty);
+        Logger.Debug?.WriteLine("-> Disposed Vulkan Instance");
+
         _vk.Dispose();
+        Logger.Debug?.WriteLine("-> Disposed Vulkan API");
 
         Logger.Debug?.WriteLine("Application successfully disposed, exiting...");
 
@@ -263,7 +313,16 @@ public sealed class VulkanRenderer : IDisposable
 
         _vk.ResetFences(_deviceContext.LogicalDevice, new ReadOnlySpan<Fence>(ref drawFence));
         _vk.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None);
-        _commandContext.RecordCommandBuffer(imageIndex, _frameIndex, _vertexBuffer, _indexBuffer);
+
+        _commandContext.RecordCommandBuffer(
+            _descriptorContext,
+            imageIndex,
+            _frameIndex,
+            _vertexBuffer,
+            _indexBuffer
+        );
+
+        UpdateUniformBuffer((int)imageIndex);
 
         PipelineStageFlags waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
         SubmitInfo submitInfo = new()
@@ -278,11 +337,12 @@ public sealed class VulkanRenderer : IDisposable
             PSignalSemaphores = &renderFinishedSemaphore,
         };
 
-        _vk.QueueSubmit(
+        var submitResult = _vk.QueueSubmit(
             _deviceContext.GraphicsQueue.Queue,
             new ReadOnlySpan<SubmitInfo>(ref submitInfo),
             drawFence
         );
+        //Logger.Info?.WriteLine($"QueueSubmit: {submitResult}");
 
         PresentInfoKHR presentInfoKhr = new()
         {
@@ -323,6 +383,57 @@ public sealed class VulkanRenderer : IDisposable
 
         _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
         _swapChainContext.RecreateSwapChain();
+    }
+
+    private void CreateUniformBuffers()
+    {
+        ulong bufferSize = (ulong)Unsafe.SizeOf<UniformBufferObject>();
+
+        for (int i = 0; i < _swapChainContext.SwapChainImages.Length; i++)
+        {
+            BufferContext uniformBuffer = new BufferContext(
+                _vk,
+                _deviceContext,
+                bufferSize,
+                BufferUsageFlags.UniformBufferBit
+            );
+            _uniformBuffers.Add(uniformBuffer);
+        }
+    }
+
+    private void UpdateUniformBuffer(int currentImage)
+    {
+        float time = (float)(Stopwatch.GetTimestamp() - StartTime) / Stopwatch.Frequency;
+        Vector3 cameraPosition = new Vector3(0.0f, 0.0f, 0f);
+        float yaw = float.DegreesToRadians(0.0f);
+        float pitch = float.DegreesToRadians(0.0f);
+        float roll = float.DegreesToRadians(45.0f * time);
+
+        UniformBufferObject uniformBufferObject = new()
+        {
+            Model =
+                Matrix4x4.CreateFromQuaternion(
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, float.Pi)
+                )
+                * Matrix4x4.CreateFromYawPitchRoll(yaw, pitch, roll)
+                * Matrix4x4.CreateTranslation(Vector3.UnitZ + cameraPosition),
+            View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
+            Proj = Matrix4x4.CreatePerspectiveFieldOfView(
+                float.DegreesToRadians(70.0f),
+                (float)_swapChainContext.SwapChainExtent.Width
+                    / _swapChainContext.SwapChainExtent.Height,
+                0.1f,
+                500.0f
+            ),
+        };
+        var proj = uniformBufferObject.Proj;
+        proj.M22 *= -1; // Flip Y (DO NOT TURN OFFFFFF)
+        uniformBufferObject.Proj = proj;
+
+        uniformBufferObject.AsBytes().CopyTo(_uniformBuffers[currentImage].MappedMemory);
+        /*Console.WriteLine(
+            $"Updating UBO frame {currentImage}, time: {time}, content: {_uniformBuffers[currentImage].MappedMemory.ToString()}]"
+        );*/
     }
 
     private unsafe Instance CreateInstance()
@@ -393,8 +504,8 @@ public sealed class VulkanRenderer : IDisposable
         foreach (string required in ValidationLayers)
         {
             if (
-                !availableLayers.Any(layer =>
-                    SilkMarshal.PtrToString((nint)layer.LayerName) == required
+                availableLayers.All(layer =>
+                    SilkMarshal.PtrToString((nint)layer.LayerName) != required
                 )
             )
             {
@@ -444,8 +555,8 @@ public sealed class VulkanRenderer : IDisposable
         foreach (string requiredName in required)
         {
             if (
-                !extensionProperties.Any(prop =>
-                    SilkMarshal.PtrToString((nint)prop.ExtensionName) == requiredName
+                extensionProperties.All(prop =>
+                    SilkMarshal.PtrToString((nint)prop.ExtensionName) != requiredName
                 )
             )
             {

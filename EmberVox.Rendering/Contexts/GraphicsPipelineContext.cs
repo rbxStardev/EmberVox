@@ -8,11 +8,12 @@ namespace EmberVox.Rendering.Contexts;
 internal sealed class GraphicsPipelineContext : IDisposable
 {
     public Pipeline GraphicsPipeline { get; }
+    public DescriptorSetLayout DescriptorSetLayout { get; }
 
     private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
-    private readonly PipelineLayout _pipelineLayout;
+    public PipelineLayout PipelineLayout { get; }
     private readonly List<ShaderModule> _shaderModules;
 
     public unsafe GraphicsPipelineContext(
@@ -30,7 +31,6 @@ internal sealed class GraphicsPipelineContext : IDisposable
             Path.Combine(AppContext.BaseDirectory, "Shaders", "slang.spv")
         );
         ShaderModule shaderModule = CreateShaderModule(shaderCode);
-        Logger.Metric?.WriteLine($"Created shader module of size: {shaderCode.Length} bytes");
 
         PipelineShaderStageCreateInfo vertShaderStageInfo = new()
         {
@@ -49,7 +49,8 @@ internal sealed class GraphicsPipelineContext : IDisposable
 
         PipelineShaderStageCreateInfo[] shaderStages = [vertShaderStageInfo, fragShaderStageInfo];
 
-        _pipelineLayout = CreatePipelineLayout();
+        DescriptorSetLayout = CreateDescriptorSetLayout();
+        PipelineLayout = CreatePipelineLayout();
         GraphicsPipeline = CreateGraphicsPipeline(shaderStages);
 
         SilkMarshal.FreeString((nint)vertShaderStageInfo.PName);
@@ -58,6 +59,11 @@ internal sealed class GraphicsPipelineContext : IDisposable
 
     public void Dispose()
     {
+        _vk.DestroyDescriptorSetLayout(
+            _deviceContext.LogicalDevice,
+            DescriptorSetLayout,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
         _vk.DestroyPipeline(
             _deviceContext.LogicalDevice,
             GraphicsPipeline,
@@ -65,7 +71,7 @@ internal sealed class GraphicsPipelineContext : IDisposable
         );
         _vk.DestroyPipelineLayout(
             _deviceContext.LogicalDevice,
-            _pipelineLayout,
+            PipelineLayout,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
         foreach (ShaderModule shaderModule in _shaderModules)
@@ -78,12 +84,41 @@ internal sealed class GraphicsPipelineContext : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    private unsafe DescriptorSetLayout CreateDescriptorSetLayout()
+    {
+        DescriptorSetLayoutBinding uniformBufferObjectLayoutBinding = new()
+        {
+            Binding = 0,
+            DescriptorType = DescriptorType.UniformBuffer,
+            DescriptorCount = 1,
+            StageFlags = ShaderStageFlags.VertexBit,
+        };
+        DescriptorSetLayoutCreateInfo layoutInfo = new()
+        {
+            SType = StructureType.DescriptorSetLayoutCreateInfo,
+            BindingCount = 1,
+            PBindings = &uniformBufferObjectLayoutBinding,
+        };
+
+        DescriptorSetLayout descriptorSetLayout = default;
+        _vk.CreateDescriptorSetLayout(
+            _deviceContext.LogicalDevice,
+            new ReadOnlySpan<DescriptorSetLayoutCreateInfo>(ref layoutInfo),
+            ReadOnlySpan<AllocationCallbacks>.Empty,
+            new Span<DescriptorSetLayout>(ref descriptorSetLayout)
+        );
+
+        return descriptorSetLayout;
+    }
+
     private unsafe PipelineLayout CreatePipelineLayout()
     {
+        DescriptorSetLayout layout = DescriptorSetLayout;
         PipelineLayoutCreateInfo pipelineLayoutInfo = new()
         {
             SType = StructureType.PipelineLayoutCreateInfo,
-            SetLayoutCount = 0,
+            SetLayoutCount = 1,
+            PSetLayouts = &layout,
             PushConstantRangeCount = 0,
         };
 
@@ -141,18 +176,34 @@ internal sealed class GraphicsPipelineContext : IDisposable
                     ScissorCount = 1,
                 };
 
-                PipelineRasterizationStateCreateInfo rasterizer = new()
+                /*PipelineRasterizationStateCreateInfo rasterizer = new()
                 {
                     SType = StructureType.PipelineRasterizationStateCreateInfo,
                     DepthClampEnable = Vk.False,
                     RasterizerDiscardEnable = Vk.False,
                     PolygonMode = PolygonMode.Fill,
                     CullMode = CullModeFlags.BackBit,
-                    FrontFace = FrontFace.Clockwise,
+                    FrontFace = FrontFace.CounterClockwise,
                     DepthBiasEnable = Vk.False,
                     DepthBiasSlopeFactor = 1.0f,
                     LineWidth = 1.0f,
-                };
+                };*/
+
+                PipelineRasterizationStateCreateInfo rasterizer = new(
+                    StructureType.PipelineRasterizationStateCreateInfo,
+                    null,
+                    null,
+                    Vk.False,
+                    Vk.False,
+                    PolygonMode.Fill,
+                    CullModeFlags.BackBit,
+                    FrontFace.CounterClockwise,
+                    Vk.False,
+                    0.0f,
+                    0.0f,
+                    1.0f,
+                    1.0f
+                );
 
                 PipelineMultisampleStateCreateInfo multisampling = new()
                 {
@@ -209,7 +260,7 @@ internal sealed class GraphicsPipelineContext : IDisposable
                         PMultisampleState = &multisampling,
                         PColorBlendState = &colorBlending,
                         PDynamicState = &dynamicState,
-                        Layout = _pipelineLayout,
+                        Layout = PipelineLayout,
                     };
 
                     Pipeline pipeline = default;
@@ -255,6 +306,8 @@ internal sealed class GraphicsPipelineContext : IDisposable
         }
 
         _shaderModules.Add(shaderModule);
+        Logger.Metric?.WriteLine($"Created shader module of size: {shaderCode.Length} bytes");
+
         return shaderModule;
     }
 }

@@ -81,11 +81,11 @@ internal sealed class DeviceContext : IDisposable
             _vk.GetPhysicalDeviceProperties(device, out PhysicalDeviceProperties properties);
             Logger.Info?.WriteLine("Found suitable physical device, listing properties...");
             Logger.Metric?.WriteLine(
-                $"Device Name: {SilkMarshal.PtrToString((nint)properties.DeviceName)}"
+                $"-> Device Name: {SilkMarshal.PtrToString((nint)properties.DeviceName)}"
             );
-            Logger.Metric?.WriteLine($"Device Type: {properties.DeviceType}");
-            Logger.Metric?.WriteLine($"Device Vendor ID: {properties.VendorID}");
-            Logger.Metric?.WriteLine($"Device ID: {properties.DeviceID}");
+            Logger.Metric?.WriteLine($"-> Device Type: {properties.DeviceType}");
+            Logger.Metric?.WriteLine($"-> Device Vendor ID: {properties.VendorID}");
+            Logger.Metric?.WriteLine($"-> Device ID: {properties.DeviceID}");
 
             return device;
         }
