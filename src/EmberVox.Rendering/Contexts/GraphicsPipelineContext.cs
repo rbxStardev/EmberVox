@@ -197,7 +197,7 @@ internal sealed class GraphicsPipelineContext : IDisposable
                     Vk.False,
                     PolygonMode.Fill,
                     CullModeFlags.BackBit,
-                    FrontFace.CounterClockwise,
+                    FrontFace.Clockwise,
                     Vk.False,
                     0.0f,
                     0.0f,

@@ -8,7 +8,7 @@ namespace EmberVox.Rendering.Types;
 
 public struct Vertex
 {
-    public Vector2 Position;
+    public Vector3 Position;
     public Vector4 Color;
 
     public static VertexInputBindingDescription GetBindingDescription() =>
@@ -25,7 +25,7 @@ public struct Vertex
 
         return
         [
-            new(0, 0, Format.R32G32Sfloat, (uint)Unsafe.OffsetOf(ref v, ref v.Position)),
+            new(0, 0, Format.R32G32B32Sfloat, (uint)Unsafe.OffsetOf(ref v, ref v.Position)),
             new(1, 0, Format.R32G32B32A32Sfloat, (uint)Unsafe.OffsetOf(ref v, ref v.Color)),
         ];
     }

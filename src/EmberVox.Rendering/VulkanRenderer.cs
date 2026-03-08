@@ -4,6 +4,8 @@ using System.Runtime.CompilerServices;
 using EmberVox.Core;
 using EmberVox.Core.Extensions;
 using EmberVox.Core.Logging;
+using EmberVox.Engine;
+using EmberVox.Engine.Components;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.Types;
 using Silk.NET.Core;
@@ -23,13 +25,94 @@ public sealed class VulkanRenderer : IDisposable
 {
     private static readonly Vertex[] Vertices =
     [
-        new() { Position = new Vector2(-0.5f, -0.5f), Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f) },
-        new() { Position = new Vector2(0.5f, -0.5f), Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f) },
-        new() { Position = new Vector2(0.5f, 0.5f), Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f) },
-        new() { Position = new Vector2(-0.5f, 0.5f), Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f) }, // Top Left
+        new() // Front Top Left
+        {
+            Position = new Vector3(-0.5f, 0.5f, 0.5f),
+            Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
+        },
+        new() // Front Top Right
+        {
+            Position = new Vector3(0.5f, 0.5f, 0.5f), // Greater Z position
+            Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f),
+        },
+        new() // Front Bottom Right
+        {
+            Position = new Vector3(0.5f, -0.5f, 0.5f),
+            Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f),
+        },
+        new() // Front Bottom Left
+        {
+            Position = new Vector3(-0.5f, -0.5f, 0.5f),
+            Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+        },
+        new() // Back Top Left
+        {
+            Position = new Vector3(-0.5f, 0.5f, -0.5f),
+            Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
+        },
+        new() // Back Top Right
+        {
+            Position = new Vector3(0.5f, 0.5f, -0.5f), // Greater Z position
+            Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f),
+        },
+        new() // Back Bottom Right
+        {
+            Position = new Vector3(0.5f, -0.5f, -0.5f),
+            Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f),
+        },
+        new() // Back Bottom Left
+        {
+            Position = new Vector3(-0.5f, -0.5f, -0.5f),
+            Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+        },
     ];
 
-    private static readonly uint[] Indices = [0, 1, 2, 2, 3, 0];
+    //private static readonly uint[] Indices = [0, 1, 2, 2, 3, 0];
+    private static readonly uint[] Indices =
+    [
+        // Top Face
+        4,
+        5,
+        1,
+        1,
+        0,
+        4,
+        // Bottom Face
+        3,
+        2,
+        6,
+        6,
+        7,
+        3,
+        // Front Face
+        0,
+        1,
+        2,
+        2,
+        3,
+        0,
+        // Back Face
+        5,
+        4,
+        7,
+        7,
+        6,
+        5,
+        // Right Face
+        1,
+        5,
+        6,
+        6,
+        2,
+        1,
+        // Left Face
+        4,
+        0,
+        3,
+        3,
+        7,
+        4,
+    ];
 
     private static readonly string[] ValidationLayers = ["VK_LAYER_KHRONOS_validation"];
 
@@ -43,6 +126,8 @@ public sealed class VulkanRenderer : IDisposable
 #endif
 
     private readonly IWindow _window;
+    private readonly Camera _camera;
+
     private readonly Vk _vk;
     private readonly Instance _instance;
     private readonly DefaultDebugContext _debugContext;
@@ -60,9 +145,10 @@ public sealed class VulkanRenderer : IDisposable
     private int _frameIndex;
     private bool _frameBufferResized;
 
-    public VulkanRenderer(IWindow window)
+    public VulkanRenderer(IWindow window, Camera camera)
     {
         _window = window;
+        _camera = camera;
 
         Logger.Info?.WriteLine("~ Initializing Vulkan... ~");
         Console.WriteLine();
@@ -198,6 +284,8 @@ public sealed class VulkanRenderer : IDisposable
             (uint)_swapChainContext.SwapChainImages.Length,
             _uniformBuffers
         );
+
+        PlugEvents();
     }
 
     public void Dispose()
@@ -256,11 +344,14 @@ public sealed class VulkanRenderer : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public void MainLoop()
+    private void PlugEvents()
     {
         _window.Render += WindowOnRender;
         _window.FramebufferResize += WindowOnFramebufferResize;
+    }
 
+    public void MainLoop()
+    {
         _window.Run();
 
         _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
@@ -403,23 +494,18 @@ public sealed class VulkanRenderer : IDisposable
 
     private void UpdateUniformBuffer(int currentImage)
     {
-        float time = (float)(Stopwatch.GetTimestamp() - StartTime) / Stopwatch.Frequency;
-        Vector3 cameraPosition = new Vector3(0.0f, 0.0f, 0f);
-        float yaw = float.DegreesToRadians(0.0f);
-        float pitch = float.DegreesToRadians(0.0f);
-        float roll = float.DegreesToRadians(45.0f * time);
-
         UniformBufferObject uniformBufferObject = new()
         {
             Model =
                 Matrix4x4.CreateFromQuaternion(
                     Quaternion.CreateFromAxisAngle(Vector3.UnitY, float.Pi)
                 )
-                * Matrix4x4.CreateFromYawPitchRoll(yaw, pitch, roll)
-                * Matrix4x4.CreateTranslation(Vector3.UnitZ + cameraPosition),
+                * Matrix4x4.CreateFromQuaternion(_camera.Transform.Rotation)
+                * Matrix4x4.CreateTranslation(Vector3.UnitZ + _camera.Transform.Position)
+                * Matrix4x4.CreateScale(_camera.Transform.Scale),
             View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
             Proj = Matrix4x4.CreatePerspectiveFieldOfView(
-                float.DegreesToRadians(70.0f),
+                float.DegreesToRadians(_camera.FieldOfView),
                 (float)_swapChainContext.SwapChainExtent.Width
                     / _swapChainContext.SwapChainExtent.Height,
                 0.1f,
