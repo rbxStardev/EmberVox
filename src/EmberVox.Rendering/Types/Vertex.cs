@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using EmberVox.Core;
 using EmberVox.Core.Extensions;
 using Silk.NET.Vulkan;
 

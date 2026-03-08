@@ -1,12 +1,12 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using EmberVox.Core;
 using EmberVox.Core.Extensions;
 using EmberVox.Core.Logging;
 using EmberVox.Engine;
 using EmberVox.Engine.Components;
 using EmberVox.Rendering.Contexts;
+using EmberVox.Rendering.RenderPatterns;
 using EmberVox.Rendering.Types;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
@@ -23,97 +23,6 @@ namespace EmberVox.Rendering;
 
 public sealed class VulkanRenderer : IDisposable
 {
-    private static readonly Vertex[] Vertices =
-    [
-        new() // Front Top Left
-        {
-            Position = new Vector3(-0.5f, 0.5f, 0.5f),
-            Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-        },
-        new() // Front Top Right
-        {
-            Position = new Vector3(0.5f, 0.5f, 0.5f), // Greater Z position
-            Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f),
-        },
-        new() // Front Bottom Right
-        {
-            Position = new Vector3(0.5f, -0.5f, 0.5f),
-            Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f),
-        },
-        new() // Front Bottom Left
-        {
-            Position = new Vector3(-0.5f, -0.5f, 0.5f),
-            Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f),
-        },
-        new() // Back Top Left
-        {
-            Position = new Vector3(-0.5f, 0.5f, -0.5f),
-            Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-        },
-        new() // Back Top Right
-        {
-            Position = new Vector3(0.5f, 0.5f, -0.5f), // Greater Z position
-            Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f),
-        },
-        new() // Back Bottom Right
-        {
-            Position = new Vector3(0.5f, -0.5f, -0.5f),
-            Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f),
-        },
-        new() // Back Bottom Left
-        {
-            Position = new Vector3(-0.5f, -0.5f, -0.5f),
-            Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f),
-        },
-    ];
-
-    //private static readonly uint[] Indices = [0, 1, 2, 2, 3, 0];
-    private static readonly uint[] Indices =
-    [
-        // Top Face
-        4,
-        5,
-        1,
-        1,
-        0,
-        4,
-        // Bottom Face
-        3,
-        2,
-        6,
-        6,
-        7,
-        3,
-        // Front Face
-        0,
-        1,
-        2,
-        2,
-        3,
-        0,
-        // Back Face
-        5,
-        4,
-        7,
-        7,
-        6,
-        5,
-        // Right Face
-        1,
-        5,
-        6,
-        6,
-        2,
-        1,
-        // Left Face
-        4,
-        0,
-        3,
-        3,
-        7,
-        4,
-    ];
-
     private static readonly string[] ValidationLayers = ["VK_LAYER_KHRONOS_validation"];
 
     private static readonly long StartTime = Stopwatch.GetTimestamp();
@@ -137,10 +46,12 @@ public sealed class VulkanRenderer : IDisposable
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
     private readonly CommandContext _commandContext;
     private readonly SyncContext _syncContext;
-    private readonly BufferContext _vertexBuffer;
-    private readonly BufferContext _indexBuffer;
+
+    //private readonly BufferContext _vertexBuffer;
+    //private readonly BufferContext _indexBuffer;
     private readonly List<BufferContext> _uniformBuffers;
     private readonly DescriptorContext _descriptorContext;
+    private readonly Dictionary<MeshComponent, MeshRenderInfo> _meshesToRender = new();
 
     private int _frameIndex;
     private bool _frameBufferResized;
@@ -223,6 +134,7 @@ public sealed class VulkanRenderer : IDisposable
         Console.WriteLine();
 
         {
+            /*
             // Vertex
             ulong vertexBufferSize = (ulong)Vertices.AsBytes().Length;
 
@@ -267,6 +179,7 @@ public sealed class VulkanRenderer : IDisposable
 
             _commandContext.CopyBuffer(stagingBuffer, _indexBuffer, indexBufferSize);
             stagingBuffer.Dispose();
+            */
 
             // Uniforms
 
@@ -308,11 +221,20 @@ public sealed class VulkanRenderer : IDisposable
                 Logger.Debug?.WriteLine("-> Disposed UniformBuffer");
             }
 
+            /*
             _indexBuffer.Dispose();
             Logger.Debug?.WriteLine("-> Disposed IndexBuffer");
 
             _vertexBuffer.Dispose();
             Logger.Debug?.WriteLine("-> Disposed VertexBuffer");
+            */
+
+            foreach (
+                (MeshComponent meshComponent, MeshRenderInfo meshRenderInfo) in _meshesToRender
+            )
+            {
+                meshRenderInfo.Dispose();
+            }
 
             _syncContext.Dispose();
             Logger.Debug?.WriteLine("-> Disposed SyncContext");
@@ -355,6 +277,63 @@ public sealed class VulkanRenderer : IDisposable
         _window.Run();
 
         _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
+    }
+
+    public void RegisterMesh(MeshComponent mesh)
+    {
+        // Vertex
+        ulong vertexBufferSize = (ulong)mesh.Vertices.AsBytes().Length;
+
+        BufferContext stagingBuffer = new(
+            _vk,
+            _deviceContext,
+            vertexBufferSize,
+            BufferUsageFlags.TransferSrcBit
+        );
+        mesh.Vertices.AsBytes().CopyTo(stagingBuffer.MappedMemory);
+
+        BufferContext vertexBuffer = new BufferContext(
+            _vk,
+            _deviceContext,
+            vertexBufferSize,
+            BufferUsageFlags.TransferDstBit | BufferUsageFlags.VertexBufferBit,
+            MemoryPropertyFlags.DeviceLocalBit
+        );
+
+        _commandContext.CopyBuffer(stagingBuffer, vertexBuffer, vertexBufferSize);
+        stagingBuffer.Dispose();
+
+        // Indices
+
+        ulong indexBufferSize = (ulong)mesh.Indices.AsBytes().Length;
+
+        stagingBuffer = new BufferContext(
+            _vk,
+            _deviceContext,
+            indexBufferSize,
+            BufferUsageFlags.TransferSrcBit
+        );
+        mesh.Indices.AsBytes().CopyTo(stagingBuffer.MappedMemory);
+
+        BufferContext indexBuffer = new BufferContext(
+            _vk,
+            _deviceContext,
+            indexBufferSize,
+            BufferUsageFlags.TransferDstBit | BufferUsageFlags.IndexBufferBit,
+            MemoryPropertyFlags.DeviceLocalBit
+        );
+
+        _commandContext.CopyBuffer(stagingBuffer, indexBuffer, indexBufferSize);
+        stagingBuffer.Dispose();
+
+        // Mesh Render Info
+        MeshRenderInfo meshRenderInfo = new MeshRenderInfo(
+            vertexBuffer,
+            indexBuffer,
+            (uint)mesh.Indices.Length
+        );
+
+        _meshesToRender[mesh] = meshRenderInfo;
     }
 
     private void WindowOnFramebufferResize(Vector2D<int> newSize) => _frameBufferResized = true;
@@ -405,6 +384,7 @@ public sealed class VulkanRenderer : IDisposable
         _vk.ResetFences(_deviceContext.LogicalDevice, new ReadOnlySpan<Fence>(ref drawFence));
         _vk.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None);
 
+        /*
         _commandContext.RecordCommandBuffer(
             _descriptorContext,
             imageIndex,
@@ -412,6 +392,15 @@ public sealed class VulkanRenderer : IDisposable
             _vertexBuffer,
             _indexBuffer
         );
+        */
+        _commandContext.BeginCommandBufferRecording(_descriptorContext, imageIndex, _frameIndex);
+
+        foreach ((MeshComponent mesh, MeshRenderInfo meshRenderInfo) in _meshesToRender)
+        {
+            _commandContext.Draw(new MeshRenderPattern(meshRenderInfo));
+        }
+
+        _commandContext.EndCommandBufferRecording(imageIndex, _frameIndex);
 
         UpdateUniformBuffer((int)imageIndex);
 
@@ -476,6 +465,8 @@ public sealed class VulkanRenderer : IDisposable
         _swapChainContext.RecreateSwapChain();
     }
 
+    #region UniformBufferHandling
+
     private void CreateUniformBuffers()
     {
         ulong bufferSize = (ulong)Unsafe.SizeOf<UniformBufferObject>();
@@ -521,6 +512,10 @@ public sealed class VulkanRenderer : IDisposable
             $"Updating UBO frame {currentImage}, time: {time}, content: {_uniformBuffers[currentImage].MappedMemory.ToString()}]"
         );*/
     }
+
+    #endregion
+
+    #region InstanceCreation
 
     private unsafe Instance CreateInstance()
     {
@@ -655,4 +650,6 @@ public sealed class VulkanRenderer : IDisposable
 
         return true;
     }
+
+    #endregion
 }

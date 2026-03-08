@@ -1,4 +1,4 @@
-using EmberVox.Core.Logging;
+using EmberVox.Rendering.RenderPatterns;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
 
@@ -14,6 +14,8 @@ internal sealed class CommandContext : IDisposable
     private readonly SwapChainContext _swapChainContext;
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
     private readonly uint _maxFramesInFlight;
+
+    private readonly List<IRenderPattern> _renderPatterns = [];
 
     public CommandContext(
         Vk vk,
@@ -52,6 +54,121 @@ internal sealed class CommandContext : IDisposable
         int currentFrame,
         BufferContext vertexBuffer,
         BufferContext indexBuffer
+    )
+    {
+        // --> Begin Frame <--
+        CommandBuffer commandBuffer = CommandBuffers[currentFrame];
+
+        CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
+        var beginResult = _vk.BeginCommandBuffer(
+            commandBuffer,
+            new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
+        );
+        //Logger.Info?.WriteLine($"BeginCommandBuffer: {beginResult}");
+
+        TransitionImageLayout(
+            commandBuffer,
+            imageIndex,
+            ImageLayout.Undefined,
+            ImageLayout.ColorAttachmentOptimal,
+            default,
+            AccessFlags2.ColorAttachmentWriteBit,
+            PipelineStageFlags2.ColorAttachmentOutputBit,
+            PipelineStageFlags2.ColorAttachmentOutputBit
+        );
+
+        ClearValue clearColor = new(new ClearColorValue(0.5f, 0.5f, 0.5f, 1.0f));
+        RenderingAttachmentInfo attachmentInfo = new()
+        {
+            SType = StructureType.RenderingAttachmentInfo,
+            ImageView = _swapChainContext.SwapChainImageViews[imageIndex],
+            ImageLayout = ImageLayout.ColorAttachmentOptimal,
+            LoadOp = AttachmentLoadOp.Clear,
+            StoreOp = AttachmentStoreOp.Store,
+            ClearValue = clearColor,
+        };
+
+        RenderingInfo renderingInfo = new()
+        {
+            SType = StructureType.RenderingInfo,
+            RenderArea = new Rect2D()
+            {
+                Offset = new Offset2D(0, 0),
+                Extent = _swapChainContext.SwapChainExtent,
+            },
+            LayerCount = 1,
+            ColorAttachmentCount = 1,
+            PColorAttachments = &attachmentInfo,
+        };
+
+        _vk.CmdBeginRendering(commandBuffer, new ReadOnlySpan<RenderingInfo>(ref renderingInfo));
+
+        Viewport viewport = new(
+            0.0f,
+            0.0f,
+            _swapChainContext.SwapChainExtent.Width,
+            _swapChainContext.SwapChainExtent.Height,
+            0.0f,
+            1.0f
+        );
+        _vk.CmdSetViewport(commandBuffer, 0, new ReadOnlySpan<Viewport>(ref viewport));
+
+        Rect2D scissor = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
+        _vk.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
+
+        DescriptorSet descriptorSet = descriptorContext[(int)imageIndex];
+        _vk.CmdBindDescriptorSets(
+            commandBuffer,
+            PipelineBindPoint.Graphics,
+            _graphicsPipelineContext.PipelineLayout,
+            0,
+            new ReadOnlySpan<DescriptorSet>(ref descriptorSet),
+            ReadOnlySpan<uint>.Empty
+        );
+
+        // --> Draw Mesh <--
+        _vk.CmdBindPipeline(
+            commandBuffer,
+            PipelineBindPoint.Graphics,
+            _graphicsPipelineContext.GraphicsPipeline
+        );
+        //Console.WriteLine($"Drawing frame, imageIndex: {imageIndex}, currentFrame: {currentFrame}");
+
+        Buffer vertexBufferBuffer = vertexBuffer.Buffer;
+        _vk.CmdBindVertexBuffers(
+            commandBuffer,
+            0,
+            new ReadOnlySpan<Buffer>(ref vertexBufferBuffer),
+            new ReadOnlySpan<ulong>([0])
+        );
+
+        Buffer indexBufferBuffer = indexBuffer.Buffer;
+        _vk.CmdBindIndexBuffer(commandBuffer, indexBufferBuffer, 0, IndexType.Uint32);
+
+        _vk.CmdDrawIndexed(commandBuffer, 36, 1, 0, 0, 0);
+
+        // --> End Frame <--
+        _vk.CmdEndRendering(commandBuffer);
+
+        TransitionImageLayout(
+            commandBuffer,
+            imageIndex,
+            ImageLayout.ColorAttachmentOptimal,
+            ImageLayout.PresentSrcKhr,
+            AccessFlags2.ColorAttachmentWriteBit,
+            default,
+            PipelineStageFlags2.ColorAttachmentOutputBit,
+            PipelineStageFlags2.BottomOfPipeBit
+        );
+
+        var endResult = _vk.EndCommandBuffer(commandBuffer);
+        //Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
+    }
+
+    public unsafe void BeginCommandBufferRecording(
+        DescriptorContext descriptorContext,
+        uint imageIndex,
+        int currentFrame
     )
     {
         CommandBuffer commandBuffer = CommandBuffers[currentFrame];
@@ -100,24 +217,6 @@ internal sealed class CommandContext : IDisposable
 
         _vk.CmdBeginRendering(commandBuffer, new ReadOnlySpan<RenderingInfo>(ref renderingInfo));
 
-        _vk.CmdBindPipeline(
-            commandBuffer,
-            PipelineBindPoint.Graphics,
-            _graphicsPipelineContext.GraphicsPipeline
-        );
-        //Console.WriteLine($"Drawing frame, imageIndex: {imageIndex}, currentFrame: {currentFrame}");
-
-        Buffer vertexBufferBuffer = vertexBuffer.Buffer;
-        _vk.CmdBindVertexBuffers(
-            commandBuffer,
-            0,
-            new ReadOnlySpan<Buffer>(ref vertexBufferBuffer),
-            new ReadOnlySpan<ulong>([0])
-        );
-
-        Buffer indexBufferBuffer = indexBuffer.Buffer;
-        _vk.CmdBindIndexBuffer(commandBuffer, indexBufferBuffer, 0, IndexType.Uint32);
-
         Viewport viewport = new(
             0.0f,
             0.0f,
@@ -140,7 +239,21 @@ internal sealed class CommandContext : IDisposable
             new ReadOnlySpan<DescriptorSet>(ref descriptorSet),
             ReadOnlySpan<uint>.Empty
         );
-        _vk.CmdDrawIndexed(commandBuffer, 36, 1, 0, 0, 0);
+    }
+
+    public void Draw(IRenderPattern renderPattern)
+    {
+        _renderPatterns.Add(renderPattern);
+    }
+
+    public void EndCommandBufferRecording(uint imageIndex, int currentFrame)
+    {
+        CommandBuffer commandBuffer = CommandBuffers[currentFrame];
+
+        foreach (IRenderPattern renderPattern in _renderPatterns)
+        {
+            renderPattern.Render(_vk, commandBuffer, _graphicsPipelineContext.GraphicsPipeline);
+        }
 
         _vk.CmdEndRendering(commandBuffer);
 
@@ -157,6 +270,8 @@ internal sealed class CommandContext : IDisposable
 
         var endResult = _vk.EndCommandBuffer(commandBuffer);
         //Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
+
+        _renderPatterns.Clear();
     }
 
     public unsafe void CopyBuffer(BufferContext srcBuffer, BufferContext dstBuffer, ulong size)
