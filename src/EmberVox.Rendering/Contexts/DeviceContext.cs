@@ -140,7 +140,12 @@ internal sealed class DeviceContext : IDisposable
         );
         Logger.Metric?.WriteLine("Physical device extensions are valid (Passed)");
 
-        return hasVersion && hasGraphicsQueue && hasExtensions;
+        PhysicalDeviceFeatures supportedFeatures = _vk.GetPhysicalDeviceFeatures(device);
+
+        return hasVersion
+            && hasGraphicsQueue
+            && hasExtensions
+            && supportedFeatures.SamplerAnisotropy;
     }
 
     private (uint graphics, uint present) FindPhysicalDeviceQueueFamilies(PhysicalDevice device)
@@ -214,6 +219,7 @@ internal sealed class DeviceContext : IDisposable
         PhysicalDeviceFeatures2 deviceFeatures2 = new()
         {
             SType = StructureType.PhysicalDeviceFeatures2,
+            Features = new PhysicalDeviceFeatures() { SamplerAnisotropy = true },
             PNext = &vulkan13Features,
         };
 
