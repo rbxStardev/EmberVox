@@ -74,7 +74,7 @@ internal sealed class CommandContext : IDisposable
             PipelineStageFlags2.ColorAttachmentOutputBit
         );
 
-        ClearValue clearColor = new(new ClearColorValue(255.0f, 0.0f, 255.0f, 1.0f));
+        ClearValue clearColor = new(new ClearColorValue(0.5f, 0.5f, 0.5f, 1.0f));
         RenderingAttachmentInfo attachmentInfo = new()
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -140,7 +140,7 @@ internal sealed class CommandContext : IDisposable
             new ReadOnlySpan<DescriptorSet>(ref descriptorSet),
             ReadOnlySpan<uint>.Empty
         );
-        _vk.CmdDrawIndexed(commandBuffer, 6, 1, 0, 0, 0);
+        _vk.CmdDrawIndexed(commandBuffer, 36, 1, 0, 0, 0);
 
         _vk.CmdEndRendering(commandBuffer);
 
