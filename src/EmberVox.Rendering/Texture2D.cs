@@ -10,8 +10,10 @@ internal class Texture2D : IDisposable
     private readonly DeviceContext _deviceContext;
     private readonly CommandContext _commandContext;
     private readonly Image _textureImage;
+    private readonly ImageView _textureImageView;
     private readonly DeviceMemory _textureImageMemory;
     private readonly MemoryRequirements _memoryRequirements;
+    private readonly Sampler _textureSampler;
 
     public Texture2D(
         Vk vk,
@@ -73,10 +75,23 @@ internal class Texture2D : IDisposable
             ImageLayout.TransferDstOptimal,
             ImageLayout.ShaderReadOnlyOptimal
         );
+
+        _textureImageView = CreateImageView(_textureImage, Format.R8G8B8A8Srgb);
+        _textureSampler = CreateTextureSampler();
     }
 
     public void Dispose()
     {
+        _vk.DestroySampler(
+            _deviceContext.LogicalDevice,
+            _textureSampler,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+        _vk.DestroyImageView(
+            _deviceContext.LogicalDevice,
+            _textureImageView,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
         _vk.FreeMemory(
             _deviceContext.LogicalDevice,
             _textureImageMemory,
@@ -151,5 +166,63 @@ internal class Texture2D : IDisposable
             throw new Exception("Failed to allocate buffer memory");
 
         return imageMemory;
+    }
+
+    private ImageView CreateImageView(Image image, Format format)
+    {
+        ImageViewCreateInfo viewInfo = new()
+        {
+            SType = StructureType.ImageViewCreateInfo,
+            Image = image,
+            ViewType = ImageViewType.Type2D,
+            Format = format,
+            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, 1, 0, 1),
+        };
+
+        ImageView imageView = default;
+        _vk.CreateImageView(
+            _deviceContext.LogicalDevice,
+            new ReadOnlySpan<ImageViewCreateInfo>(ref viewInfo),
+            ReadOnlySpan<AllocationCallbacks>.Empty,
+            new Span<ImageView>(ref imageView)
+        );
+
+        return imageView;
+    }
+
+    private Sampler CreateTextureSampler()
+    {
+        PhysicalDeviceProperties properties = _vk.GetPhysicalDeviceProperties(
+            _deviceContext.PhysicalDevice
+        );
+        SamplerCreateInfo samplerInfo = new()
+        {
+            SType = StructureType.SamplerCreateInfo,
+            MagFilter = Filter.Linear,
+            MinFilter = Filter.Linear,
+            MipmapMode = SamplerMipmapMode.Linear,
+            MipLodBias = 0.0f,
+            MinLod = 0.0f,
+            MaxLod = 0.0f,
+            AddressModeU = SamplerAddressMode.Repeat,
+            AddressModeV = SamplerAddressMode.Repeat,
+            AddressModeW = SamplerAddressMode.Repeat,
+            AnisotropyEnable = Vk.True,
+            MaxAnisotropy = properties.Limits.MaxSamplerAnisotropy,
+            CompareEnable = Vk.False,
+            CompareOp = CompareOp.Always,
+            BorderColor = BorderColor.IntOpaqueBlack,
+            UnnormalizedCoordinates = Vk.False,
+        };
+
+        Sampler sampler = default;
+        _vk.CreateSampler(
+            _deviceContext.LogicalDevice,
+            new ReadOnlySpan<SamplerCreateInfo>(ref samplerInfo),
+            ReadOnlySpan<AllocationCallbacks>.Empty,
+            new Span<Sampler>(ref sampler)
+        );
+
+        return sampler;
     }
 }
