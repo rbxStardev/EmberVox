@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using EmberVox.Rendering.RenderPatterns;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
@@ -274,37 +275,44 @@ internal sealed class CommandContext : IDisposable
         _renderPatterns.Clear();
     }
 
-    public unsafe void CopyBuffer(BufferContext srcBuffer, BufferContext dstBuffer, ulong size)
+    public CommandBuffer BeginSingleTimeCommands()
     {
-        CommandPool commandCopyPool = CreateCommandPool(
-            _deviceContext.GraphicsQueue.Index,
-            CommandPoolCreateFlags.TransientBit
+        CommandBufferAllocateInfo allocateInfo = new()
+        {
+            SType = StructureType.CommandBufferAllocateInfo,
+            CommandPool = MainCommandPool,
+            Level = CommandBufferLevel.Primary,
+            CommandBufferCount = 1,
+        };
+        CommandBuffer commandBuffer = default;
+        _vk.AllocateCommandBuffers(
+            _deviceContext.LogicalDevice,
+            new ReadOnlySpan<CommandBufferAllocateInfo>(allocateInfo),
+            new Span<CommandBuffer>(ref commandBuffer)
         );
 
-        CommandBuffer commandCopyBuffer = default;
-        CreateCommandBuffers(commandCopyPool, 1, new Span<CommandBuffer>(ref commandCopyBuffer));
-
-        CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
+        CommandBufferBeginInfo beginInfo = new()
+        {
+            SType = StructureType.CommandBufferBeginInfo,
+            Flags = CommandBufferUsageFlags.OneTimeSubmitBit,
+        };
         _vk.BeginCommandBuffer(
-            commandCopyBuffer,
+            commandBuffer,
             new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
         );
 
-        BufferCopy copy = new() { Size = size };
-        _vk.CmdCopyBuffer(
-            commandCopyBuffer,
-            srcBuffer.Buffer,
-            dstBuffer.Buffer,
-            new ReadOnlySpan<BufferCopy>(ref copy)
-        );
+        return commandBuffer;
+    }
 
-        _vk.EndCommandBuffer(commandCopyBuffer);
+    public unsafe void EndSingleTimeCommands(CommandBuffer commandBuffer)
+    {
+        _vk.EndCommandBuffer(commandBuffer);
 
         SubmitInfo submitInfo = new()
         {
             SType = StructureType.SubmitInfo,
             CommandBufferCount = 1,
-            PCommandBuffers = &commandCopyBuffer,
+            PCommandBuffers = &commandBuffer,
         };
         _vk.QueueSubmit(
             _deviceContext.GraphicsQueue.Queue,
@@ -312,12 +320,50 @@ internal sealed class CommandContext : IDisposable
             default
         );
         _vk.QueueWaitIdle(_deviceContext.GraphicsQueue.Queue);
+    }
 
-        _vk.DestroyCommandPool(
-            _deviceContext.LogicalDevice,
-            commandCopyPool,
-            ReadOnlySpan<AllocationCallbacks>.Empty
+    public unsafe void CopyBuffer(
+        BufferContext srcBufferContext,
+        BufferContext dstBufferContext,
+        ulong size
+    )
+    {
+        CommandBuffer commandBuffer = BeginSingleTimeCommands();
+
+        BufferCopy copy = new() { Size = size };
+        _vk.CmdCopyBuffer(
+            commandBuffer,
+            srcBufferContext.Buffer,
+            dstBufferContext.Buffer,
+            new ReadOnlySpan<BufferCopy>(ref copy)
         );
+
+        EndSingleTimeCommands(commandBuffer);
+    }
+
+    public void CopyBufferToImage(BufferContext bufferContext, Image image, uint width, uint height)
+    {
+        CommandBuffer commandBuffer = BeginSingleTimeCommands();
+
+        BufferImageCopy region = new()
+        {
+            BufferOffset = 0,
+            BufferRowLength = 0,
+            BufferImageHeight = 0,
+            ImageSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, 0, 0, 1),
+            ImageOffset = new Offset3D(0, 0, 0),
+            ImageExtent = new Extent3D(width, height, 1),
+        };
+
+        _vk.CmdCopyBufferToImage(
+            commandBuffer,
+            bufferContext.Buffer,
+            image,
+            ImageLayout.TransferDstOptimal,
+            new ReadOnlySpan<BufferImageCopy>(ref region)
+        );
+
+        EndSingleTimeCommands(commandBuffer);
     }
 
     private void CreateCommandBuffers(
@@ -415,5 +461,58 @@ internal sealed class CommandContext : IDisposable
             commandBuffer,
             new ReadOnlySpan<DependencyInfo>(ref dependencyInfo)
         );
+    }
+
+    public void TransitionImageLayout(Image image, ImageLayout oldLayout, ImageLayout newLayout)
+    {
+        CommandBuffer commandBuffer = BeginSingleTimeCommands();
+
+        ImageMemoryBarrier barrier = new()
+        {
+            SType = StructureType.ImageMemoryBarrier,
+            OldLayout = oldLayout,
+            NewLayout = newLayout,
+            Image = image,
+            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, 1, 0, 1),
+        };
+
+        PipelineStageFlags sourceStage;
+        PipelineStageFlags destinationStage;
+
+        if (oldLayout == ImageLayout.Undefined && newLayout == ImageLayout.TransferDstOptimal)
+        {
+            barrier.SrcAccessMask = default;
+            barrier.DstAccessMask = AccessFlags.TransferWriteBit;
+
+            sourceStage = PipelineStageFlags.TopOfPipeBit;
+            destinationStage = PipelineStageFlags.TransferBit;
+        }
+        else if (
+            oldLayout == ImageLayout.TransferDstOptimal
+            && newLayout == ImageLayout.ShaderReadOnlyOptimal
+        )
+        {
+            barrier.SrcAccessMask = AccessFlags.TransferWriteBit;
+            barrier.DstAccessMask = AccessFlags.ShaderReadBit;
+
+            sourceStage = PipelineStageFlags.TransferBit;
+            destinationStage = PipelineStageFlags.FragmentShaderBit;
+        }
+        else
+        {
+            throw new InvalidEnumArgumentException("unsupported layout transition!");
+        }
+
+        _vk.CmdPipelineBarrier(
+            commandBuffer,
+            sourceStage,
+            destinationStage,
+            default,
+            ReadOnlySpan<MemoryBarrier>.Empty,
+            ReadOnlySpan<BufferMemoryBarrier>.Empty,
+            new ReadOnlySpan<ImageMemoryBarrier>(ref barrier)
+        );
+
+        EndSingleTimeCommands(commandBuffer);
     }
 }

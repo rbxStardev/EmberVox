@@ -1,5 +1,6 @@
 using EmberVox.Core.Logging;
 using EmberVox.Rendering.Types;
+using EmberVox.Rendering.Utils;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan;
 
@@ -86,29 +87,42 @@ internal sealed class GraphicsPipelineContext : IDisposable
 
     private unsafe DescriptorSetLayout CreateDescriptorSetLayout()
     {
-        DescriptorSetLayoutBinding uniformBufferObjectLayoutBinding = new()
+        DescriptorSetLayoutBinding[] bindings =
+        [
+            new()
+            {
+                Binding = 0,
+                DescriptorType = DescriptorType.UniformBuffer,
+                DescriptorCount = 1,
+                StageFlags = ShaderStageFlags.VertexBit,
+            },
+            new()
+            {
+                Binding = 1,
+                DescriptorType = DescriptorType.CombinedImageSampler,
+                DescriptorCount = 1,
+                StageFlags = ShaderStageFlags.FragmentBit,
+            },
+        ];
+        fixed (DescriptorSetLayoutBinding* pBindings = bindings)
         {
-            Binding = 0,
-            DescriptorType = DescriptorType.UniformBuffer,
-            DescriptorCount = 1,
-            StageFlags = ShaderStageFlags.VertexBit,
-        };
-        DescriptorSetLayoutCreateInfo layoutInfo = new()
-        {
-            SType = StructureType.DescriptorSetLayoutCreateInfo,
-            BindingCount = 1,
-            PBindings = &uniformBufferObjectLayoutBinding,
-        };
+            DescriptorSetLayoutCreateInfo layoutInfo = new()
+            {
+                SType = StructureType.DescriptorSetLayoutCreateInfo,
+                BindingCount = (uint)bindings.Length,
+                PBindings = pBindings,
+            };
 
-        DescriptorSetLayout descriptorSetLayout = default;
-        _vk.CreateDescriptorSetLayout(
-            _deviceContext.LogicalDevice,
-            new ReadOnlySpan<DescriptorSetLayoutCreateInfo>(ref layoutInfo),
-            ReadOnlySpan<AllocationCallbacks>.Empty,
-            new Span<DescriptorSetLayout>(ref descriptorSetLayout)
-        );
+            DescriptorSetLayout descriptorSetLayout = default;
+            _vk.CreateDescriptorSetLayout(
+                _deviceContext.LogicalDevice,
+                new ReadOnlySpan<DescriptorSetLayoutCreateInfo>(ref layoutInfo),
+                ReadOnlySpan<AllocationCallbacks>.Empty,
+                new Span<DescriptorSetLayout>(ref descriptorSetLayout)
+            );
 
-        return descriptorSetLayout;
+            return descriptorSetLayout;
+        }
     }
 
     private unsafe PipelineLayout CreatePipelineLayout()
@@ -148,9 +162,9 @@ internal sealed class GraphicsPipelineContext : IDisposable
                 PDynamicStates = pDynamicStates,
             };
 
-            VertexInputBindingDescription bindingDescription = Vertex.GetBindingDescription();
+            VertexInputBindingDescription bindingDescription = VertexHelper.GetBindingDescription();
             VertexInputAttributeDescription[] attributeDescriptions =
-                Vertex.GetAttributeDescriptions();
+                VertexHelper.GetAttributeDescriptions();
 
             fixed (VertexInputAttributeDescription* pAttributeDescriptions = attributeDescriptions)
             {

@@ -3,6 +3,7 @@ using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
 using EmberVox.Engine;
 using EmberVox.Engine.Components;
+using EmberVox.Engine.VoxelUtils;
 using EmberVox.Platform;
 using EmberVox.Rendering;
 
@@ -10,47 +11,56 @@ namespace EmberVox.Sandbox;
 
 public static class Program
 {
+    /*
     private static readonly VertexData[] Vertices =
     [
         new() // Front Top Left
         {
             Position = new Vector3(-0.5f, 0.5f, 0.5f),
             Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
+            TexCoord = Vector2.Zero,
         },
         new() // Front Top Right
         {
             Position = new Vector3(0.5f, 0.5f, 0.5f), // Greater Z position
             Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f),
+            TexCoord = Vector2.UnitX,
         },
         new() // Front Bottom Right
         {
             Position = new Vector3(0.5f, -0.5f, 0.5f),
             Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f),
+            TexCoord = Vector2.One,
         },
         new() // Front Bottom Left
         {
             Position = new Vector3(-0.5f, -0.5f, 0.5f),
             Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+            TexCoord = Vector2.UnitY,
         },
         new() // Back Top Left
         {
             Position = new Vector3(-0.5f, 0.5f, -0.5f),
             Color = new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
+            TexCoord = Vector2.UnitX,
         },
         new() // Back Top Right
         {
             Position = new Vector3(0.5f, 0.5f, -0.5f), // Greater Z position
             Color = new Vector4(0.0f, 1.0f, 0.0f, 1.0f),
+            TexCoord = Vector2.Zero,
         },
         new() // Back Bottom Right
         {
             Position = new Vector3(0.5f, -0.5f, -0.5f),
             Color = new Vector4(0.0f, 0.0f, 1.0f, 1.0f),
+            TexCoord = Vector2.UnitY,
         },
         new() // Back Bottom Left
         {
             Position = new Vector3(-0.5f, -0.5f, -0.5f),
             Color = new Vector4(1.0f, 1.0f, 1.0f, 1.0f),
+            TexCoord = Vector2.One,
         },
     ];
 
@@ -100,6 +110,10 @@ public static class Program
         7,
         4,
     ];
+    */
+
+    private static readonly List<VertexData> Vertices = [];
+    private static readonly List<uint> Indices = [];
 
     private static readonly Camera MainCamera = new();
 
@@ -112,7 +126,21 @@ public static class Program
 
             window.Handle.Update += HandleOnUpdate;
 
-            MeshComponent mesh = new() { Vertices = Vertices, Indices = Indices };
+            int totalFaces = 0;
+            foreach (VoxelFace voxelFace in Enum.GetValues<VoxelFace>())
+            {
+                Vertices.AddRange(
+                    VoxelDataUtils.GetVoxelFaceVertices(VoxelType.Grass, voxelFace, Vector3.Zero)
+                );
+                Indices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
+                totalFaces++;
+            }
+
+            MeshComponent mesh = new()
+            {
+                Vertices = Vertices.ToArray(),
+                Indices = Indices.ToArray(),
+            };
 
             vulkanRenderer.RegisterMesh(mesh);
 

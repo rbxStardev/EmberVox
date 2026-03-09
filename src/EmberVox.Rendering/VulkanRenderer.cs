@@ -14,6 +14,7 @@ using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 using Silk.NET.Windowing;
+using StbImageSharp;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering;
@@ -55,6 +56,8 @@ public sealed class VulkanRenderer : IDisposable
 
     private int _frameIndex;
     private bool _frameBufferResized;
+
+    private readonly Texture2D _texture2D;
 
     public VulkanRenderer(IWindow window, Camera camera)
     {
@@ -130,57 +133,17 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Info?.WriteLine("~ Graphics Pipeline successfully initialized. ~");
         Console.WriteLine();
 
+        _texture2D = new Texture2D(
+            _vk,
+            _deviceContext,
+            _commandContext,
+            Path.Combine(AppContext.BaseDirectory, "Textures", "atlas.png")
+        );
+
         Logger.Info?.WriteLine("~ Initializing Buffers... ~");
         Console.WriteLine();
 
         {
-            /*
-            // Vertex
-            ulong vertexBufferSize = (ulong)Vertices.AsBytes().Length;
-
-            BufferContext stagingBuffer = new(
-                _vk,
-                _deviceContext,
-                vertexBufferSize,
-                BufferUsageFlags.TransferSrcBit
-            );
-            Vertices.AsBytes().CopyTo(stagingBuffer.MappedMemory);
-
-            _vertexBuffer = new BufferContext(
-                _vk,
-                _deviceContext,
-                vertexBufferSize,
-                BufferUsageFlags.TransferDstBit | BufferUsageFlags.VertexBufferBit,
-                MemoryPropertyFlags.DeviceLocalBit
-            );
-
-            _commandContext.CopyBuffer(stagingBuffer, _vertexBuffer, vertexBufferSize);
-            stagingBuffer.Dispose();
-
-            // Indices
-
-            ulong indexBufferSize = (ulong)Indices.AsBytes().Length;
-
-            stagingBuffer = new BufferContext(
-                _vk,
-                _deviceContext,
-                indexBufferSize,
-                BufferUsageFlags.TransferSrcBit
-            );
-            Indices.AsBytes().CopyTo(stagingBuffer.MappedMemory);
-
-            _indexBuffer = new BufferContext(
-                _vk,
-                _deviceContext,
-                indexBufferSize,
-                BufferUsageFlags.TransferDstBit | BufferUsageFlags.IndexBufferBit,
-                MemoryPropertyFlags.DeviceLocalBit
-            );
-
-            _commandContext.CopyBuffer(stagingBuffer, _indexBuffer, indexBufferSize);
-            stagingBuffer.Dispose();
-            */
-
             // Uniforms
 
             _uniformBuffers = [];
@@ -195,7 +158,8 @@ public sealed class VulkanRenderer : IDisposable
             _deviceContext,
             _graphicsPipelineContext,
             (uint)_swapChainContext.SwapChainImages.Length,
-            _uniformBuffers
+            _uniformBuffers,
+            _texture2D
         );
 
         PlugEvents();
@@ -212,6 +176,13 @@ public sealed class VulkanRenderer : IDisposable
         }
 
         {
+            foreach (
+                (MeshComponent meshComponent, MeshRenderInfo meshRenderInfo) in _meshesToRender
+            )
+            {
+                meshRenderInfo.Dispose();
+            }
+
             _descriptorContext.Dispose();
             Logger.Debug?.WriteLine("-> Disposed DescriptorContext");
 
@@ -221,6 +192,8 @@ public sealed class VulkanRenderer : IDisposable
                 Logger.Debug?.WriteLine("-> Disposed UniformBuffer");
             }
 
+            _texture2D.Dispose();
+
             /*
             _indexBuffer.Dispose();
             Logger.Debug?.WriteLine("-> Disposed IndexBuffer");
@@ -228,13 +201,6 @@ public sealed class VulkanRenderer : IDisposable
             _vertexBuffer.Dispose();
             Logger.Debug?.WriteLine("-> Disposed VertexBuffer");
             */
-
-            foreach (
-                (MeshComponent meshComponent, MeshRenderInfo meshRenderInfo) in _meshesToRender
-            )
-            {
-                meshRenderInfo.Dispose();
-            }
 
             _syncContext.Dispose();
             Logger.Debug?.WriteLine("-> Disposed SyncContext");

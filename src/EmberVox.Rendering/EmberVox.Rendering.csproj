@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="Silk.NET" Version="2.23.0" />
     <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="2.23.0" />
+    <PackageReference Include="StbImageSharp" Version="2.30.15" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -22,6 +23,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>Shaders\slang.spv</Link>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Textures\texture.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Textures\atlas.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <Target Name="CompileSlangShaders" BeforeTargets="AssignTargetPaths">
