@@ -6,14 +6,15 @@ namespace EmberVox.Rendering;
 
 internal class Texture2D : IDisposable
 {
+    public Sampler Sampler { get; }
+    public ImageView ImageView { get; }
+
     private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly CommandContext _commandContext;
     private readonly Image _textureImage;
-    private readonly ImageView _textureImageView;
     private readonly DeviceMemory _textureImageMemory;
     private readonly MemoryRequirements _memoryRequirements;
-    private readonly Sampler _textureSampler;
 
     public Texture2D(
         Vk vk,
@@ -26,9 +27,9 @@ internal class Texture2D : IDisposable
         _deviceContext = deviceContext;
         _commandContext = commandContext;
 
-        Span<byte> imageSource = File.ReadAllBytes(texturePath);
-        ImageResult imageResult = ImageResult.FromMemory(
-            imageSource.ToArray(),
+        StbImage.stbi_set_flip_vertically_on_load(1);
+        ImageResult imageResult = ImageResult.FromStream(
+            File.OpenRead(texturePath),
             ColorComponents.RedGreenBlueAlpha
         );
         uint imageSize = (uint)(imageResult.Width * imageResult.Height * 4);
@@ -39,7 +40,7 @@ internal class Texture2D : IDisposable
             imageSize,
             BufferUsageFlags.TransferSrcBit
         );
-        imageSource.CopyTo(stagingBuffer.MappedMemory);
+        imageResult.Data.CopyTo(stagingBuffer.MappedMemory);
 
         _textureImage = CreateImage(
             (uint)imageResult.Width,
@@ -76,20 +77,20 @@ internal class Texture2D : IDisposable
             ImageLayout.ShaderReadOnlyOptimal
         );
 
-        _textureImageView = CreateImageView(_textureImage, Format.R8G8B8A8Srgb);
-        _textureSampler = CreateTextureSampler();
+        ImageView = CreateImageView(_textureImage, Format.R8G8B8A8Srgb);
+        Sampler = CreateTextureSampler();
     }
 
     public void Dispose()
     {
         _vk.DestroySampler(
             _deviceContext.LogicalDevice,
-            _textureSampler,
+            Sampler,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
         _vk.DestroyImageView(
             _deviceContext.LogicalDevice,
-            _textureImageView,
+            ImageView,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
         _vk.FreeMemory(

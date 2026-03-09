@@ -137,7 +137,7 @@ public sealed class VulkanRenderer : IDisposable
             _vk,
             _deviceContext,
             _commandContext,
-            Path.Combine(AppContext.BaseDirectory, "Textures", "texture.jpg")
+            Path.Combine(AppContext.BaseDirectory, "Textures", "atlas.png")
         );
 
         Logger.Info?.WriteLine("~ Initializing Buffers... ~");
@@ -158,7 +158,8 @@ public sealed class VulkanRenderer : IDisposable
             _deviceContext,
             _graphicsPipelineContext,
             (uint)_swapChainContext.SwapChainImages.Length,
-            _uniformBuffers
+            _uniformBuffers,
+            _texture2D
         );
 
         PlugEvents();
