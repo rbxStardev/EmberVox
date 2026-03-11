@@ -1,4 +1,3 @@
-using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.Types;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;

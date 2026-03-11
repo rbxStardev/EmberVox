@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using EmberVox.Rendering.RenderPatterns;
 using Silk.NET.Vulkan;
-using Buffer = Silk.NET.Vulkan.Buffer;
 
 namespace EmberVox.Rendering.Contexts;
 

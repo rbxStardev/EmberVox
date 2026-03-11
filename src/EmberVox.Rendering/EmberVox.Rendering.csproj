@@ -26,9 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Textures\texture.jpg">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <Folder Include="Textures\" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="Textures\atlas.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

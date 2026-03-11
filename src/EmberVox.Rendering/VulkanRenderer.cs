@@ -14,7 +14,6 @@ using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 using Silk.NET.Windowing;
-using StbImageSharp;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering;
@@ -58,7 +57,7 @@ public sealed class VulkanRenderer : IDisposable
     private bool _frameBufferResized;
 
     private readonly Texture2D _texture2D;
-    private readonly DepthContext _depthContext;
+    private DepthContext _depthContext;
 
     public VulkanRenderer(IWindow window, Camera camera)
     {
@@ -440,6 +439,8 @@ public sealed class VulkanRenderer : IDisposable
 
         _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
         _swapChainContext.RecreateSwapChain();
+        _depthContext.Dispose();
+        _depthContext = new DepthContext(_vk, _deviceContext, _swapChainContext);
     }
 
     #region UniformBufferHandling
