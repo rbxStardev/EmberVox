@@ -28,4 +28,11 @@ public record struct VertexData
         Position = position;
         TexCoord = texCoord;
     }
+
+    public VertexData(Vector3 position, Vector2 texCoord, Vector4 color)
+    {
+        Position = position;
+        TexCoord = texCoord;
+        Color = color;
+    }
 }

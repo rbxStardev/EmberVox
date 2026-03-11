@@ -121,19 +121,34 @@ public static class Program
     {
         try
         {
+            Transform mainCameraTransform = MainCamera.Transform;
+            mainCameraTransform.Position = Vector3.UnitZ * 16;
+            MainCamera.Transform = mainCameraTransform;
+
             using WindowContext window = new();
             using VulkanRenderer vulkanRenderer = new(window.Handle, MainCamera);
 
             window.Handle.Update += HandleOnUpdate;
 
             int totalFaces = 0;
-            foreach (VoxelFace voxelFace in Enum.GetValues<VoxelFace>())
+            // chunk testing :>
+            for (int x = 0; x < 16; x++)
+            for (int y = 0; y < 16; y++)
+            for (int z = 0; z < 16; z++)
             {
-                Vertices.AddRange(
-                    VoxelDataUtils.GetVoxelFaceVertices(VoxelType.Grass, voxelFace, Vector3.Zero)
-                );
-                Indices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
-                totalFaces++;
+                VoxelType voxelType =
+                    y < 2 ? VoxelType.Bedrock
+                    : y < 15 ? VoxelType.Dirt
+                    : VoxelType.Grass;
+                Vector3 position = new(x - 8, y - 8, z - 8);
+                foreach (VoxelFace face in Enum.GetValues<VoxelFace>())
+                {
+                    Vertices.AddRange(
+                        VoxelDataUtils.GetVoxelFaceVertices(voxelType, face, position)
+                    );
+                    Indices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
+                    totalFaces++;
+                }
             }
 
             MeshComponent mesh = new()

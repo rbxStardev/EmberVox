@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Reflection;
 using EmberVox.Core.Types;
 
 namespace EmberVox.Engine.VoxelUtils;
@@ -65,11 +64,7 @@ public static class VoxelDataUtils
     };
 
     public static readonly HashSet<VoxelType> TransparentBlockSet = Enum.GetValues<VoxelType>()
-        .Where(voxel =>
-            typeof(VoxelType)
-                .GetField(voxel.ToString())!
-                .GetCustomAttribute<TransparentVoxelAttribute>() != null
-        )
+        .Where(voxel => voxel.HasFlag(VoxelType.Transparent))
         .ToHashSet();
 
     public static readonly Dictionary<VoxelFace, Vector3> VoxelFaceNormals = new()
@@ -82,12 +77,31 @@ public static class VoxelDataUtils
         { VoxelFace.Bottom, -Vector3.UnitY },
     };
 
-    public static VertexData[] GetVoxelFaceVertices(VoxelType type, VoxelFace face, Vector3 position)
+    public static VertexData[] GetVoxelFaceVertices(
+        VoxelType type,
+        VoxelFace face,
+        Vector3 position
+    )
     {
         Vector2[] uvs = VoxelTextureUtils.GetUVs(type, face);
 
+        Random colorRandom = new();
+        float colorStep = 1f / 255;
+
         return VoxelRawFaceData[face]
-            .Select((vertex, i) => new VertexData(position + vertex.Position, uvs[i]))
+            .Select(
+                (vertex, i) =>
+                    new VertexData(
+                        position + vertex.Position,
+                        uvs[i],
+                        new Vector4(
+                            colorStep * colorRandom.Next(0, 255),
+                            colorStep * colorRandom.Next(0, 255),
+                            colorStep * colorRandom.Next(0, 255),
+                            1
+                        )
+                    )
+            )
             .ToArray();
     }
 

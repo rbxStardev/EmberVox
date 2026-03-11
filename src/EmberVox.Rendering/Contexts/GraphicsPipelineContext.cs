@@ -14,18 +14,21 @@ internal sealed class GraphicsPipelineContext : IDisposable
     private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
+    private readonly DepthContext _depthContext;
     public PipelineLayout PipelineLayout { get; }
     private readonly List<ShaderModule> _shaderModules;
 
     public unsafe GraphicsPipelineContext(
         Vk vk,
         DeviceContext deviceContext,
-        SwapChainContext swapChainContext
+        SwapChainContext swapChainContext,
+        DepthContext depthContext
     )
     {
         _vk = vk;
         _deviceContext = deviceContext;
         _swapChainContext = swapChainContext;
+        _depthContext = depthContext;
         _shaderModules = [];
 
         byte[] shaderCode = File.ReadAllBytes(
@@ -251,12 +254,23 @@ internal sealed class GraphicsPipelineContext : IDisposable
                     PAttachments = &colorBlendAttachment,
                 };
 
+                PipelineDepthStencilStateCreateInfo depthStencil = new()
+                {
+                    SType = StructureType.PipelineDepthStencilStateCreateInfo,
+                    DepthTestEnable = Vk.True,
+                    DepthWriteEnable = Vk.True,
+                    DepthCompareOp = CompareOp.Less,
+                    DepthBoundsTestEnable = Vk.False,
+                    StencilTestEnable = Vk.False,
+                };
+
                 Format swapChainImageFormat = _swapChainContext.SwapChainImageFormat;
                 PipelineRenderingCreateInfo pipelineRenderingCreateInfo = new()
                 {
                     SType = StructureType.PipelineRenderingCreateInfo,
                     ColorAttachmentCount = 1,
                     PColorAttachmentFormats = &swapChainImageFormat,
+                    DepthAttachmentFormat = _depthContext.DepthImageFormat,
                 };
 
                 fixed (PipelineShaderStageCreateInfo* pShaderStages = shaderStages)
@@ -266,6 +280,7 @@ internal sealed class GraphicsPipelineContext : IDisposable
                         SType = StructureType.GraphicsPipelineCreateInfo,
                         PNext = &pipelineRenderingCreateInfo,
                         StageCount = 2,
+                        PDepthStencilState = &depthStencil,
                         PStages = pShaderStages,
                         PVertexInputState = &vertexInputInfo,
                         PInputAssemblyState = &inputAssembly,

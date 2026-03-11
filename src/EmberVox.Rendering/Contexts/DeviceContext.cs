@@ -52,6 +52,34 @@ internal sealed class DeviceContext : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    public DeviceMemory AllocateMemory(
+        MemoryRequirements memoryRequirements,
+        MemoryPropertyFlags properties
+    )
+    {
+        uint memoryTypeIndex = GetMemoryType(memoryRequirements.MemoryTypeBits, properties);
+
+        MemoryAllocateInfo memoryAllocateInfo = new()
+        {
+            SType = StructureType.MemoryAllocateInfo,
+            AllocationSize = memoryRequirements.Size,
+            MemoryTypeIndex = memoryTypeIndex,
+        };
+
+        DeviceMemory imageMemory = default;
+        if (
+            _vk.AllocateMemory(
+                LogicalDevice,
+                new ReadOnlySpan<MemoryAllocateInfo>(ref memoryAllocateInfo),
+                ReadOnlySpan<AllocationCallbacks>.Empty,
+                new Span<DeviceMemory>(ref imageMemory)
+            ) != Result.Success
+        )
+            throw new Exception("Failed to allocate buffer memory");
+
+        return imageMemory;
+    }
+
     public uint GetMemoryType(uint typeFilter, MemoryPropertyFlags properties)
     {
         for (int i = 0; i < _memoryProperties.MemoryTypeCount; i++)
@@ -64,6 +92,37 @@ internal sealed class DeviceContext : IDisposable
         }
 
         throw new Exception("Failed to find suitable memory type!");
+    }
+
+    public Format FindSupportedFormat(
+        List<Format> candidates,
+        ImageTiling tiling,
+        FormatFeatureFlags formatFeatures
+    )
+    {
+        foreach (Format format in candidates)
+        {
+            FormatProperties properties = default;
+            _vk.GetPhysicalDeviceFormatProperties(
+                PhysicalDevice,
+                format,
+                new Span<FormatProperties>(ref properties)
+            );
+
+            if (
+                tiling == ImageTiling.Linear
+                && (properties.LinearTilingFeatures & formatFeatures) == formatFeatures
+            )
+                return format;
+
+            if (
+                tiling == ImageTiling.Optimal
+                && (properties.OptimalTilingFeatures & formatFeatures) == formatFeatures
+            )
+                return format;
+        }
+
+        throw new Exception("Failed to find supported format!");
     }
 
     private unsafe PhysicalDevice PickPhysicalDevice()

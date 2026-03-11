@@ -1,4 +1,5 @@
 using EmberVox.Rendering.Contexts;
+using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
 using StbImageSharp;
 
@@ -42,7 +43,9 @@ internal class Texture2D : IDisposable
         );
         imageResult.Data.CopyTo(stagingBuffer.MappedMemory);
 
-        _textureImage = CreateImage(
+        _textureImage = ImageUtils.CreateImage(
+            _vk,
+            _deviceContext.LogicalDevice,
             (uint)imageResult.Width,
             (uint)imageResult.Height,
             Format.R8G8B8A8Srgb,
@@ -54,7 +57,10 @@ internal class Texture2D : IDisposable
             _deviceContext.LogicalDevice,
             _textureImage
         );
-        _textureImageMemory = AllocateMemory(MemoryPropertyFlags.DeviceLocalBit);
+        _textureImageMemory = _deviceContext.AllocateMemory(
+            _memoryRequirements,
+            MemoryPropertyFlags.DeviceLocalBit
+        );
 
         _vk.BindImageMemory(_deviceContext.LogicalDevice, _textureImage, _textureImageMemory, 0);
 
@@ -77,7 +83,13 @@ internal class Texture2D : IDisposable
             ImageLayout.ShaderReadOnlyOptimal
         );
 
-        ImageView = CreateImageView(_textureImage, Format.R8G8B8A8Srgb);
+        ImageView = ImageUtils.CreateImageView(
+            _vk,
+            _deviceContext.LogicalDevice,
+            _textureImage,
+            Format.R8G8B8A8Srgb,
+            ImageAspectFlags.ColorBit
+        );
         Sampler = CreateTextureSampler();
     }
 
@@ -105,90 +117,6 @@ internal class Texture2D : IDisposable
         );
 
         GC.SuppressFinalize(this);
-    }
-
-    private Image CreateImage(
-        uint width,
-        uint height,
-        Format format,
-        ImageTiling tiling,
-        ImageUsageFlags usage
-    )
-    {
-        ImageCreateInfo imageInfo = new()
-        {
-            SType = StructureType.ImageCreateInfo,
-            ImageType = ImageType.Type2D,
-            Format = format,
-            Extent = new Extent3D(width, height, 1),
-            MipLevels = 1,
-            ArrayLayers = 1,
-            Samples = SampleCountFlags.Count1Bit,
-            Tiling = tiling,
-            Usage = usage,
-            SharingMode = SharingMode.Exclusive,
-            InitialLayout = ImageLayout.Undefined,
-        };
-
-        Image image = default;
-        _vk.CreateImage(
-            _deviceContext.LogicalDevice,
-            new ReadOnlySpan<ImageCreateInfo>(ref imageInfo),
-            ReadOnlySpan<AllocationCallbacks>.Empty,
-            new Span<Image>(ref image)
-        );
-
-        return image;
-    }
-
-    private DeviceMemory AllocateMemory(MemoryPropertyFlags properties)
-    {
-        uint memoryTypeIndex = _deviceContext.GetMemoryType(
-            _memoryRequirements.MemoryTypeBits,
-            properties
-        );
-
-        MemoryAllocateInfo memoryAllocateInfo = new()
-        {
-            SType = StructureType.MemoryAllocateInfo,
-            AllocationSize = _memoryRequirements.Size,
-            MemoryTypeIndex = memoryTypeIndex,
-        };
-
-        DeviceMemory imageMemory = default;
-        if (
-            _vk.AllocateMemory(
-                _deviceContext.LogicalDevice,
-                new ReadOnlySpan<MemoryAllocateInfo>(ref memoryAllocateInfo),
-                ReadOnlySpan<AllocationCallbacks>.Empty,
-                new Span<DeviceMemory>(ref imageMemory)
-            ) != Result.Success
-        )
-            throw new Exception("Failed to allocate buffer memory");
-
-        return imageMemory;
-    }
-
-    private ImageView CreateImageView(Image image, Format format)
-    {
-        ImageViewCreateInfo viewInfo = new()
-        {
-            SType = StructureType.ImageViewCreateInfo,
-            Image = image,
-            ViewType = ImageViewType.Type2D,
-            Format = format,
-            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, 1, 0, 1),
-        };
-
-        ImageView imageView = default;
-        _vk.CreateImageView(
-            _deviceContext.LogicalDevice,
-            new ReadOnlySpan<ImageViewCreateInfo>(ref viewInfo),
-            ReadOnlySpan<AllocationCallbacks>.Empty,
-            new Span<ImageView>(ref imageView)
-        );
-
-        return imageView;
     }
 
     private Sampler CreateTextureSampler()

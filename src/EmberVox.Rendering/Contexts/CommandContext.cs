@@ -49,6 +49,7 @@ internal sealed class CommandContext : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    /*
     public unsafe void RecordCommandBuffer(
         DescriptorContext descriptorContext,
         uint imageIndex,
@@ -79,6 +80,7 @@ internal sealed class CommandContext : IDisposable
         );
 
         ClearValue clearColor = new(new ClearColorValue(0.5f, 0.5f, 0.5f, 1.0f));
+        ClearValue clearDepth = new ClearValue(null, new ClearDepthStencilValue(1.0f, 0));
         RenderingAttachmentInfo attachmentInfo = new()
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -87,6 +89,15 @@ internal sealed class CommandContext : IDisposable
             LoadOp = AttachmentLoadOp.Clear,
             StoreOp = AttachmentStoreOp.Store,
             ClearValue = clearColor,
+        };
+        RenderingAttachmentInfo depthAttachmentInfo = new()
+        {
+            SType = StructureType.RenderingAttachmentInfo,
+            ImageView = _swapChainContext.SwapChainImageViews[imageIndex],
+            ImageLayout = ImageLayout.ColorAttachmentOptimal,
+            LoadOp = AttachmentLoadOp.Clear,
+            StoreOp = AttachmentStoreOp.Store,
+            ClearValue = clearDepth,
         };
 
         RenderingInfo renderingInfo = new()
@@ -165,9 +176,11 @@ internal sealed class CommandContext : IDisposable
         var endResult = _vk.EndCommandBuffer(commandBuffer);
         //Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
     }
+    */
 
     public unsafe void BeginCommandBufferRecording(
         DescriptorContext descriptorContext,
+        DepthContext depthContext,
         uint imageIndex,
         int currentFrame
     )
@@ -183,13 +196,25 @@ internal sealed class CommandContext : IDisposable
 
         TransitionImageLayout(
             commandBuffer,
-            imageIndex,
+            _swapChainContext.SwapChainImages[imageIndex],
             ImageLayout.Undefined,
             ImageLayout.ColorAttachmentOptimal,
             default,
             AccessFlags2.ColorAttachmentWriteBit,
             PipelineStageFlags2.ColorAttachmentOutputBit,
-            PipelineStageFlags2.ColorAttachmentOutputBit
+            PipelineStageFlags2.ColorAttachmentOutputBit,
+            ImageAspectFlags.ColorBit
+        );
+        TransitionImageLayout(
+            commandBuffer,
+            depthContext.DepthImage,
+            ImageLayout.Undefined,
+            ImageLayout.DepthAttachmentOptimal,
+            AccessFlags2.DepthStencilAttachmentWriteBit,
+            AccessFlags2.DepthStencilAttachmentWriteBit,
+            PipelineStageFlags2.EarlyFragmentTestsBit | PipelineStageFlags2.LateFragmentTestsBit,
+            PipelineStageFlags2.EarlyFragmentTestsBit | PipelineStageFlags2.LateFragmentTestsBit,
+            ImageAspectFlags.DepthBit
         );
 
         ClearValue clearColor = new(new ClearColorValue(0.5f, 0.5f, 0.5f, 1.0f));
@@ -203,6 +228,17 @@ internal sealed class CommandContext : IDisposable
             ClearValue = clearColor,
         };
 
+        ClearValue clearDepth = new ClearValue(null, new ClearDepthStencilValue(1.0f, 0));
+        RenderingAttachmentInfo depthAttachmentInfo = new()
+        {
+            SType = StructureType.RenderingAttachmentInfo,
+            ImageView = depthContext.DepthImageView,
+            ImageLayout = ImageLayout.DepthAttachmentOptimal,
+            LoadOp = AttachmentLoadOp.Clear,
+            StoreOp = AttachmentStoreOp.DontCare,
+            ClearValue = clearDepth,
+        };
+
         RenderingInfo renderingInfo = new()
         {
             SType = StructureType.RenderingInfo,
@@ -214,6 +250,7 @@ internal sealed class CommandContext : IDisposable
             LayerCount = 1,
             ColorAttachmentCount = 1,
             PColorAttachments = &attachmentInfo,
+            PDepthAttachment = &depthAttachmentInfo,
         };
 
         _vk.CmdBeginRendering(commandBuffer, new ReadOnlySpan<RenderingInfo>(ref renderingInfo));
@@ -260,13 +297,14 @@ internal sealed class CommandContext : IDisposable
 
         TransitionImageLayout(
             commandBuffer,
-            imageIndex,
+            _swapChainContext.SwapChainImages[imageIndex],
             ImageLayout.ColorAttachmentOptimal,
             ImageLayout.PresentSrcKhr,
             AccessFlags2.ColorAttachmentWriteBit,
             default,
             PipelineStageFlags2.ColorAttachmentOutputBit,
-            PipelineStageFlags2.BottomOfPipeBit
+            PipelineStageFlags2.BottomOfPipeBit,
+            ImageAspectFlags.ColorBit
         );
 
         var endResult = _vk.EndCommandBuffer(commandBuffer);
@@ -419,13 +457,14 @@ internal sealed class CommandContext : IDisposable
 
     private unsafe void TransitionImageLayout(
         CommandBuffer commandBuffer,
-        uint imageIndex,
+        Image image,
         ImageLayout oldLayout,
         ImageLayout newLayout,
         AccessFlags2 srcAccessMask,
         AccessFlags2 dstAccessMask,
         PipelineStageFlags2 srcStageMask,
-        PipelineStageFlags2 dstStageMask
+        PipelineStageFlags2 dstStageMask,
+        ImageAspectFlags imageAspectFlags
     )
     {
         ImageMemoryBarrier2 barrier = new()
@@ -439,10 +478,10 @@ internal sealed class CommandContext : IDisposable
             NewLayout = newLayout,
             SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
             DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
-            Image = _swapChainContext.SwapChainImages[imageIndex],
+            Image = image,
             SubresourceRange = new ImageSubresourceRange()
             {
-                AspectMask = ImageAspectFlags.ColorBit,
+                AspectMask = imageAspectFlags,
                 BaseMipLevel = 0,
                 LevelCount = 1,
                 BaseArrayLayer = 0,
