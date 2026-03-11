@@ -324,7 +324,7 @@ internal sealed class CommandContext : IDisposable
         CommandBuffer commandBuffer = default;
         _vk.AllocateCommandBuffers(
             _deviceContext.LogicalDevice,
-            new ReadOnlySpan<CommandBufferAllocateInfo>(allocateInfo),
+            new ReadOnlySpan<CommandBufferAllocateInfo>(ref allocateInfo),
             new Span<CommandBuffer>(ref commandBuffer)
         );
 

@@ -140,7 +140,7 @@ public sealed class VulkanRenderer : IDisposable
             _vk,
             _deviceContext,
             _commandContext,
-            Path.Combine(AppContext.BaseDirectory, "Textures", "atlas.png")
+            Path.Combine(AppContext.BaseDirectory, "Textures", "viking_room.png")
         );
 
         Logger.Info?.WriteLine("~ Initializing Buffers... ~");
