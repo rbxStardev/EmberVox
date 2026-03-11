@@ -26,11 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Textures\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Update="Textures\atlas.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Textures\viking_room.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
