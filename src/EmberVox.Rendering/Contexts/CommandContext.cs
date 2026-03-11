@@ -501,7 +501,7 @@ internal sealed class CommandContext : IDisposable
         );
     }
 
-    public void TransitionImageLayout(Image image, ImageLayout oldLayout, ImageLayout newLayout)
+    public void TransitionImageLayout(Image image, uint mipLevels, ImageLayout oldLayout, ImageLayout newLayout)
     {
         CommandBuffer commandBuffer = BeginSingleTimeCommands();
 
@@ -511,7 +511,7 @@ internal sealed class CommandContext : IDisposable
             OldLayout = oldLayout,
             NewLayout = newLayout,
             Image = image,
-            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, 1, 0, 1),
+            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, mipLevels, 0, 1),
         };
 
         PipelineStageFlags sourceStage;

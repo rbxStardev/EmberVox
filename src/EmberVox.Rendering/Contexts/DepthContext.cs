@@ -28,6 +28,7 @@ internal class DepthContext : IDisposable
             _deviceContext.LogicalDevice,
             _swapChainContext.SwapChainExtent.Width,
             _swapChainContext.SwapChainExtent.Height,
+            1,
             DepthImageFormat,
             ImageTiling.Optimal,
             ImageUsageFlags.DepthStencilAttachmentBit
@@ -48,6 +49,7 @@ internal class DepthContext : IDisposable
             _vk,
             _deviceContext.LogicalDevice,
             DepthImage,
+            1,
             DepthImageFormat,
             ImageAspectFlags.DepthBit
         );

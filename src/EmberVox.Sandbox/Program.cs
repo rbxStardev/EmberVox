@@ -2,13 +2,10 @@
 using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
 using EmberVox.Engine.Components;
-using EmberVox.Engine.VoxelUtils;
 using EmberVox.Platform;
 using EmberVox.Rendering;
 using Silk.NET.Assimp;
-using Silk.NET.Vulkan;
 using Camera = EmberVox.Engine.Camera;
-using File = System.IO.File;
 
 namespace EmberVox.Sandbox;
 
@@ -174,15 +171,24 @@ public static class Program
                 }
             }
             
+            assimp.ReleaseImport(scene);
+            
             MeshComponent meshComponent = new()
             {
-                Vertices = Vertices.ToArray(),
+                Vertices = Vertices.Select(v => new VertexData(v.Position - new Vector3(1, 0, 0), v.TexCoord, v.Color)).ToArray(),
                 Indices = Indices.ToArray(),
             };
             
-            assimp.ReleaseImport(scene);
 
             vulkanRenderer.RegisterMesh(meshComponent);
+
+            MeshComponent mesh2 = new()
+            {
+                Vertices = Vertices.Select(v => new VertexData(v.Position + new Vector3(1, 0, 0), v.TexCoord, v.Color)).ToArray(),
+                Indices = Indices.ToArray(),
+            };
+            
+            vulkanRenderer.RegisterMesh(mesh2);
 
             vulkanRenderer.MainLoop();
         }

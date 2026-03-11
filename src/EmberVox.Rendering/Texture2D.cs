@@ -13,6 +13,7 @@ internal class Texture2D : IDisposable
     private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly CommandContext _commandContext;
+    private readonly uint _mipLevels;
     private readonly Image _textureImage;
     private readonly DeviceMemory _textureImageMemory;
     private readonly MemoryRequirements _memoryRequirements;
@@ -33,6 +34,7 @@ internal class Texture2D : IDisposable
             File.OpenRead(texturePath),
             ColorComponents.RedGreenBlueAlpha
         );
+        _mipLevels = (uint)Math.Floor(Math.Log2(Math.Max(imageResult.Width, imageResult.Height))) + 1;
         uint imageSize = (uint)(imageResult.Width * imageResult.Height * 4);
 
         BufferContext stagingBuffer = new BufferContext(
@@ -48,9 +50,10 @@ internal class Texture2D : IDisposable
             _deviceContext.LogicalDevice,
             (uint)imageResult.Width,
             (uint)imageResult.Height,
+            _mipLevels,
             Format.R8G8B8A8Srgb,
             ImageTiling.Optimal,
-            ImageUsageFlags.TransferDstBit | ImageUsageFlags.SampledBit
+            ImageUsageFlags.TransferSrcBit | ImageUsageFlags.TransferDstBit | ImageUsageFlags.SampledBit
         );
 
         _memoryRequirements = _vk.GetImageMemoryRequirements(
@@ -66,6 +69,7 @@ internal class Texture2D : IDisposable
 
         _commandContext.TransitionImageLayout(
             _textureImage,
+            _mipLevels,
             ImageLayout.Undefined,
             ImageLayout.TransferDstOptimal
         );
@@ -75,22 +79,28 @@ internal class Texture2D : IDisposable
             (uint)imageResult.Width,
             (uint)imageResult.Height
         );
-        stagingBuffer.Dispose();
 
         _commandContext.TransitionImageLayout(
             _textureImage,
-            ImageLayout.TransferDstOptimal,
-            ImageLayout.ShaderReadOnlyOptimal
+            _mipLevels,
+            ImageLayout.Undefined,
+            ImageLayout.TransferDstOptimal
         );
+        _commandContext.CopyBufferToImage(stagingBuffer, _textureImage, (uint)imageResult.Width, (uint)imageResult.Height);
+        
+        ImageUtils.GenerateMipmaps(_vk, _commandContext, _deviceContext, _textureImage, Format.R8G8B8A8Srgb, imageResult.Width, imageResult.Height, _mipLevels);
 
         ImageView = ImageUtils.CreateImageView(
             _vk,
             _deviceContext.LogicalDevice,
             _textureImage,
+            _mipLevels,
             Format.R8G8B8A8Srgb,
             ImageAspectFlags.ColorBit
         );
         Sampler = CreateTextureSampler();
+        
+        stagingBuffer.Dispose();
     }
 
     public void Dispose()
@@ -130,16 +140,16 @@ internal class Texture2D : IDisposable
             MagFilter = Filter.Linear,
             MinFilter = Filter.Linear,
             MipmapMode = SamplerMipmapMode.Linear,
-            MipLodBias = 0.0f,
-            MinLod = 0.0f,
-            MaxLod = 0.0f,
             AddressModeU = SamplerAddressMode.Repeat,
             AddressModeV = SamplerAddressMode.Repeat,
             AddressModeW = SamplerAddressMode.Repeat,
+            MipLodBias = 0.0f,
             AnisotropyEnable = Vk.True,
             MaxAnisotropy = properties.Limits.MaxSamplerAnisotropy,
             CompareEnable = Vk.False,
             CompareOp = CompareOp.Always,
+            MinLod = 0.0f,
+            MaxLod = Vk.LodClampNone,
             BorderColor = BorderColor.IntOpaqueBlack,
             UnnormalizedCoordinates = Vk.False,
         };
