@@ -1,4 +1,5 @@
 using EmberVox.Core.Logging;
+using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;

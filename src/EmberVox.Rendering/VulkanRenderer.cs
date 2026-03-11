@@ -58,6 +58,7 @@ public sealed class VulkanRenderer : IDisposable
     private bool _frameBufferResized;
 
     private readonly Texture2D _texture2D;
+    private readonly DepthContext _depthContext;
 
     public VulkanRenderer(IWindow window, Camera camera)
     {
@@ -107,11 +108,14 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Info?.WriteLine("~ Initializing Graphics Pipeline... ~");
         Console.WriteLine();
 
+        _depthContext = new DepthContext(_vk, _deviceContext, _swapChainContext);
+
         {
             _graphicsPipelineContext = new GraphicsPipelineContext(
                 _vk,
                 _deviceContext,
-                _swapChainContext
+                _swapChainContext,
+                _depthContext
             );
             Console.WriteLine();
 
@@ -210,6 +214,8 @@ public sealed class VulkanRenderer : IDisposable
 
             _graphicsPipelineContext.Dispose();
             Logger.Debug?.WriteLine("-> Disposed GraphicsPipelineContext");
+
+            _depthContext.Dispose();
 
             _swapChainContext.Dispose();
             Logger.Debug?.WriteLine("-> Disposed SwapChainContext");
@@ -359,7 +365,12 @@ public sealed class VulkanRenderer : IDisposable
             _indexBuffer
         );
         */
-        _commandContext.BeginCommandBufferRecording(_descriptorContext, imageIndex, _frameIndex);
+        _commandContext.BeginCommandBufferRecording(
+            _descriptorContext,
+            _depthContext,
+            imageIndex,
+            _frameIndex
+        );
 
         foreach ((MeshComponent mesh, MeshRenderInfo meshRenderInfo) in _meshesToRender)
         {
