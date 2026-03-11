@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using EmberVox.Core.Extensions;
 using EmberVox.Core.Types;

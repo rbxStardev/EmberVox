@@ -1,11 +1,11 @@
 ﻿using System.Numerics;
 using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
-using EmberVox.Engine;
 using EmberVox.Engine.Components;
-using EmberVox.Engine.VoxelUtils;
 using EmberVox.Platform;
 using EmberVox.Rendering;
+using Silk.NET.Assimp;
+using Camera = EmberVox.Engine.Camera;
 
 namespace EmberVox.Sandbox;
 
@@ -117,12 +117,23 @@ public static class Program
 
     private static readonly Camera MainCamera = new();
 
-    public static void Main(string[] args)
+    public static unsafe void Main(string[] args)
     {
         try
         {
             Transform mainCameraTransform = MainCamera.Transform;
-            mainCameraTransform.Position = Vector3.UnitZ * 16;
+            //mainCameraTransform.Position = Vector3.UnitZ * 16;
+            var xQuat = Quaternion.CreateFromAxisAngle(
+                Vector3.UnitZ,
+                float.DegreesToRadians(90.0f)
+            );
+            var yQuat = Quaternion.CreateFromAxisAngle(
+                Vector3.UnitX,
+                float.DegreesToRadians(45.0f)
+            );
+            mainCameraTransform.Rotation = yQuat * mainCameraTransform.Rotation;
+            mainCameraTransform.Rotation *= xQuat;
+
             MainCamera.Transform = mainCameraTransform;
 
             using WindowContext window = new();
@@ -130,34 +141,54 @@ public static class Program
 
             window.Handle.Update += HandleOnUpdate;
 
-            int totalFaces = 0;
-            // chunk testing :>
-            for (int x = 0; x < 16; x++)
-            for (int y = 0; y < 16; y++)
-            for (int z = 0; z < 16; z++)
+            Assimp assimp = Assimp.GetApi();
+            Scene* scene =
+                assimp.ImportFile(
+                    Path.Combine(AppContext.BaseDirectory, "Models", "viking_room.obj"), (uint)(PostProcessSteps.Triangulate | PostProcessSteps.FlipWindingOrder | PostProcessSteps.JoinIdenticalVertices));
+
+            if (scene == null)
+                throw new Exception($"Assimp failed: {assimp.GetErrorStringS()}");
+            
+            for (int m = 0; m < scene->MNumMeshes; m++)
             {
-                VoxelType voxelType =
-                    y < 2 ? VoxelType.Bedrock
-                    : y < 15 ? VoxelType.Dirt
-                    : VoxelType.Grass;
-                Vector3 position = new(x - 8, y - 8, z - 8);
-                foreach (VoxelFace face in Enum.GetValues<VoxelFace>())
+                Mesh* mesh = scene->MMeshes[m];
+
+                for (int v = 0; v < mesh->MNumVertices; v++)
                 {
-                    Vertices.AddRange(
-                        VoxelDataUtils.GetVoxelFaceVertices(voxelType, face, position)
-                    );
-                    Indices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
-                    totalFaces++;
+                    Vector3 vertexPosition = mesh->MVertices[v];
+                    Vector3 vertexUv = mesh->MTextureCoords[0][v];
+                    Vertices.Add(new VertexData(vertexPosition, vertexUv.AsVector2(), Vector4.One));
+                }
+
+                for (int f = 0; f < mesh->MNumFaces; f++)
+                {
+                    Face face = mesh->MFaces[f];
+                    for (int i = 0; i < face.MNumIndices; i++)
+                    {
+                        uint index = face.MIndices[i];
+                        Indices.Add(index);
+                    }
                 }
             }
-
-            MeshComponent mesh = new()
+            
+            assimp.ReleaseImport(scene);
+            
+            MeshComponent meshComponent = new()
             {
-                Vertices = Vertices.ToArray(),
+                Vertices = Vertices.Select(v => new VertexData(v.Position - new Vector3(1, 0, 0), v.TexCoord, v.Color)).ToArray(),
                 Indices = Indices.ToArray(),
             };
+            
 
-            vulkanRenderer.RegisterMesh(mesh);
+            vulkanRenderer.RegisterMesh(meshComponent);
+
+            MeshComponent mesh2 = new()
+            {
+                Vertices = Vertices.Select(v => new VertexData(v.Position + new Vector3(1, 0, 0), v.TexCoord, v.Color)).ToArray(),
+                Indices = Indices.ToArray(),
+            };
+            
+            vulkanRenderer.RegisterMesh(mesh2);
 
             vulkanRenderer.MainLoop();
         }
@@ -171,18 +202,14 @@ public static class Program
 
     private static void HandleOnUpdate(double deltaTime)
     {
-        Transform cameraTransform = MainCamera.Transform;
-        var xQuat = Quaternion.CreateFromAxisAngle(
-            Vector3.UnitY,
-            float.DegreesToRadians((float)(36.0f * deltaTime))
+        Transform mainCameraTransform = MainCamera.Transform;
+        //mainCameraTransform.Position = Vector3.UnitZ * 16;
+        var zQuat = Quaternion.CreateFromAxisAngle(
+            Vector3.UnitZ,
+            float.DegreesToRadians((float)(45.0f * deltaTime))
         );
-        var yQuat = Quaternion.CreateFromAxisAngle(
-            Vector3.UnitX,
-            float.DegreesToRadians((float)(36.0f * deltaTime))
-        );
-        cameraTransform.Rotation = yQuat * cameraTransform.Rotation;
-        cameraTransform.Rotation *= xQuat;
+        mainCameraTransform.Rotation *= zQuat;
 
-        MainCamera.Transform = cameraTransform;
+        MainCamera.Transform = mainCameraTransform;
     }
 }
