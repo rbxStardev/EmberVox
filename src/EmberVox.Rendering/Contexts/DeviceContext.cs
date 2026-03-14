@@ -1,4 +1,5 @@
 using EmberVox.Core.Logging;
+using EmberVox.Core.Types;
 using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan;
@@ -293,11 +294,11 @@ public sealed class DeviceContext : IResource
 
         HashSet<uint> uniqueIndices = [graphicsIndex, presentIndex];
         uint[] indices = uniqueIndices.ToArray();
-        DeviceQueueCreateInfo[] queueCreateInfos = new DeviceQueueCreateInfo[indices.Length];
+        DeviceQueueCreateInfo[] queueCreateInfoArray = new DeviceQueueCreateInfo[indices.Length];
 
         for (int i = 0; i < indices.Length; i++)
         {
-            queueCreateInfos[i] = new DeviceQueueCreateInfo()
+            queueCreateInfoArray[i] = new DeviceQueueCreateInfo()
             {
                 SType = StructureType.DeviceQueueCreateInfo,
                 QueueFamilyIndex = indices[i],
@@ -306,18 +307,23 @@ public sealed class DeviceContext : IResource
             };
         }
 
-        Device logicalDevice;
-        fixed (DeviceQueueCreateInfo* pQueueCreateInfos = queueCreateInfos)
-        {
-            deviceCreateInfo.QueueCreateInfoCount = (uint)queueCreateInfos.Length;
-            deviceCreateInfo.PQueueCreateInfos = pQueueCreateInfos;
+        //fixed (DeviceQueueCreateInfo* pQueueCreateInfos = queueCreateInfos)
+        //{
+        using ManagedPointer<DeviceQueueCreateInfo> queueCreateInfo = new(
+            queueCreateInfoArray.Length
+        );
+        queueCreateInfoArray.CopyTo(queueCreateInfo.Span);
 
-            if (
-                Api.CreateDevice(PhysicalDevice, &deviceCreateInfo, null, out logicalDevice)
-                != Result.Success
-            )
-                throw new Exception("Failed to create logical device");
-        }
+        deviceCreateInfo.QueueCreateInfoCount = (uint)queueCreateInfo.Length;
+        deviceCreateInfo.PQueueCreateInfos = queueCreateInfo.Pointer;
+
+        Device logicalDevice;
+        if (
+            Api.CreateDevice(PhysicalDevice, &deviceCreateInfo, null, out logicalDevice)
+            != Result.Success
+        )
+            throw new Exception("Failed to create logical device");
+        //}
 
         SilkMarshal.Free((nint)deviceCreateInfo.PpEnabledExtensionNames);
 
