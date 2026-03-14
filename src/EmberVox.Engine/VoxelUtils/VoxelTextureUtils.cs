@@ -9,10 +9,15 @@ internal static class VoxelTextureUtils
 
     private static Vector2[] GetAtlasUVs(int column, int row)
     {
-        float size = 1.0f / AtlasSize;
+        return [new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1)];
+    }
 
-        float u = column * size;
-        float v = 1.0f - (row + 1) * size;
+    private static Vector2[] GetUnmappedUVs()
+    {
+        float size = 1.0f;
+
+        float u = size;
+        float v = 1.0f - 1 * size;
 
         return
         [
@@ -45,8 +50,11 @@ internal static class VoxelTextureUtils
         },
     };
 
-    public static Vector2[] GetUVs(VoxelType voxelType, VoxelFace voxelFace)
+    public static Vector2[] GetUVs(VoxelType voxelType, VoxelFace voxelFace, bool mapped = false)
     {
+        if (!mapped)
+            return GetUnmappedUVs();
+
         if (
             VoxelFaceUvOverrides.TryGetValue(voxelType, out var faceDict)
             && faceDict.TryGetValue(voxelFace, out var overrideUVs)

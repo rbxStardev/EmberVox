@@ -1,21 +1,18 @@
 using EmberVox.Rendering.GraphicsPipeline;
+using EmberVox.Rendering.RenderingManagement;
 
 namespace EmberVox.Rendering.Types;
 
 public struct Material
 {
-    public Texture2D Texture;
+    public IRenderable Renderable;
     public GraphicsPipelineContext GraphicsPipelineContext;
 
-    public Material(VulkanRenderer vulkanRenderer, string texturePath)
+    public Material(VulkanRenderer vulkanRenderer, IRenderable renderable)
     {
-        Texture = new Texture2D(
-            vulkanRenderer.DeviceContext,
-            vulkanRenderer.CommandContext,
-            texturePath
-        );
+        Renderable = renderable;
         GraphicsPipelineContext = new GraphicsPipelineContext(
-            Texture,
+            Renderable,
             vulkanRenderer.DeviceContext,
             vulkanRenderer.SwapChainContext,
             vulkanRenderer.DepthContext,

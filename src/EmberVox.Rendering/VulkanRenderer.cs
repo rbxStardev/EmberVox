@@ -199,7 +199,7 @@ public sealed class VulkanRenderer : IDisposable
     {
         _meshesToRender[material] = [];
         ResourceManager.SubmitResource(material.GraphicsPipelineContext);
-        ResourceManager.SubmitResource(material.Texture);
+        ResourceManager.SubmitResource(material.Renderable);
     }
 
     public void RegisterMesh(Mesh mesh, Material material)

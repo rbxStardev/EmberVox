@@ -1,5 +1,4 @@
 using EmberVox.Core.Extensions;
-using EmberVox.Core.Types;
 using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.ResourceManagement;
@@ -16,7 +15,7 @@ public class Mesh : IResource
     public Mesh(
         DeviceContext deviceContext,
         CommandContext commandContext,
-        ReadOnlySpan<VertexData> vertices,
+        ReadOnlySpan<Vertex> vertices,
         ReadOnlySpan<uint> indices
     )
     {

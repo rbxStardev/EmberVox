@@ -1,64 +1,64 @@
 using System.Numerics;
-using EmberVox.Core.Types;
+using EmberVox.Rendering.Types;
 
 namespace EmberVox.Engine.VoxelUtils;
 
 public static class VoxelDataUtils
 {
-    public static readonly Dictionary<VoxelFace, List<VertexData>> VoxelRawFaceData = new()
+    public static readonly Dictionary<VoxelFace, List<Vertex>> VoxelRawFaceData = new()
     {
         {
             VoxelFace.Front,
             [
-                new VertexData(new Vector3(-0.5f, -0.5f, -0.5f)),
-                new VertexData(new Vector3(0.5f, -0.5f, -0.5f)),
-                new VertexData(new Vector3(0.5f, 0.5f, -0.5f)),
-                new VertexData(new Vector3(-0.5f, 0.5f, -0.5f)),
+                new Vertex { Position = new Vector3(-0.5f, -0.5f, -0.5f) },
+                new Vertex { Position = new Vector3(0.5f, -0.5f, -0.5f) },
+                new Vertex { Position = new Vector3(0.5f, 0.5f, -0.5f) },
+                new Vertex { Position = new Vector3(-0.5f, 0.5f, -0.5f) },
             ]
         },
         {
             VoxelFace.Right,
             [
-                new VertexData(new Vector3(0.5f, -0.5f, -0.5f)),
-                new VertexData(new Vector3(0.5f, -0.5f, 0.5f)),
-                new VertexData(new Vector3(0.5f, 0.5f, 0.5f)),
-                new VertexData(new Vector3(0.5f, 0.5f, -0.5f)),
+                new Vertex { Position = new Vector3(0.5f, -0.5f, -0.5f) },
+                new Vertex { Position = new Vector3(0.5f, -0.5f, 0.5f) },
+                new Vertex { Position = new Vector3(0.5f, 0.5f, 0.5f) },
+                new Vertex { Position = new Vector3(0.5f, 0.5f, -0.5f) },
             ]
         },
         {
             VoxelFace.Back,
             [
-                new VertexData(new Vector3(0.5f, -0.5f, 0.5f)),
-                new VertexData(new Vector3(-0.5f, -0.5f, 0.5f)),
-                new VertexData(new Vector3(-0.5f, 0.5f, 0.5f)),
-                new VertexData(new Vector3(0.5f, 0.5f, 0.5f)),
+                new Vertex { Position = new Vector3(0.5f, -0.5f, 0.5f) },
+                new Vertex { Position = new Vector3(-0.5f, -0.5f, 0.5f) },
+                new Vertex { Position = new Vector3(-0.5f, 0.5f, 0.5f) },
+                new Vertex { Position = new Vector3(0.5f, 0.5f, 0.5f) },
             ]
         },
         {
             VoxelFace.Left,
             [
-                new VertexData(new Vector3(-0.5f, -0.5f, 0.5f)),
-                new VertexData(new Vector3(-0.5f, -0.5f, -0.5f)),
-                new VertexData(new Vector3(-0.5f, 0.5f, -0.5f)),
-                new VertexData(new Vector3(-0.5f, 0.5f, 0.5f)),
+                new Vertex { Position = new Vector3(-0.5f, -0.5f, 0.5f) },
+                new Vertex { Position = new Vector3(-0.5f, -0.5f, -0.5f) },
+                new Vertex { Position = new Vector3(-0.5f, 0.5f, -0.5f) },
+                new Vertex { Position = new Vector3(-0.5f, 0.5f, 0.5f) },
             ]
         },
         {
             VoxelFace.Top,
             [
-                new VertexData(new Vector3(-0.5f, 0.5f, -0.5f)),
-                new VertexData(new Vector3(0.5f, 0.5f, -0.5f)),
-                new VertexData(new Vector3(0.5f, 0.5f, 0.5f)),
-                new VertexData(new Vector3(-0.5f, 0.5f, 0.5f)),
+                new Vertex { Position = new Vector3(-0.5f, 0.5f, -0.5f) },
+                new Vertex { Position = new Vector3(0.5f, 0.5f, -0.5f) },
+                new Vertex { Position = new Vector3(0.5f, 0.5f, 0.5f) },
+                new Vertex { Position = new Vector3(-0.5f, 0.5f, 0.5f) },
             ]
         },
         {
             VoxelFace.Bottom,
             [
-                new VertexData(new Vector3(-0.5f, -0.5f, 0.5f)),
-                new VertexData(new Vector3(0.5f, -0.5f, 0.5f)),
-                new VertexData(new Vector3(0.5f, -0.5f, -0.5f)),
-                new VertexData(new Vector3(-0.5f, -0.5f, -0.5f)),
+                new Vertex { Position = new Vector3(-0.5f, -0.5f, 0.5f) },
+                new Vertex { Position = new Vector3(0.5f, -0.5f, 0.5f) },
+                new Vertex { Position = new Vector3(0.5f, -0.5f, -0.5f) },
+                new Vertex { Position = new Vector3(-0.5f, -0.5f, -0.5f) },
             ]
         },
     };
@@ -77,18 +77,24 @@ public static class VoxelDataUtils
         { VoxelFace.Bottom, -Vector3.UnitY },
     };
 
-    public static VertexData[] GetVoxelFaceVertices(
+    public static Vertex[] GetVoxelFaceVertices(
         VoxelType type,
         VoxelFace face,
-        Vector3 position
+        Vector3 position,
+        bool includeUv = false
     )
     {
-        Vector2[] uvs = VoxelTextureUtils.GetUVs(type, face);
+        Vector2[] uvs = VoxelTextureUtils.GetUVs(type, face, includeUv);
 
         return VoxelRawFaceData[face]
             .Select(
                 (vertex, i) =>
-                    new VertexData(position + vertex.Position, uvs[i], new Vector4(1, 1, 1, 1))
+                    new Vertex
+                    {
+                        Position = position + vertex.Position,
+                        Color = new Vector4(1, 1, 1, 1),
+                        TexCoord = uvs[i],
+                    }
             )
             .ToArray();
     }

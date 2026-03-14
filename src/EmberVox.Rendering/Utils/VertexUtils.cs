@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using EmberVox.Core.Extensions;
-using EmberVox.Core.Types;
+using EmberVox.Rendering.Types;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Utils;
@@ -14,7 +14,7 @@ public static class VertexUtils
             new VertexInputBindingDescription
             {
                 Binding = 0,
-                Stride = (uint)Unsafe.SizeOf<VertexData>(),
+                Stride = (uint)Unsafe.SizeOf<Vertex>(),
                 InputRate = VertexInputRate.Vertex,
             },
         ];
@@ -22,7 +22,7 @@ public static class VertexUtils
 
     public static VertexInputAttributeDescription[] GetAttributeDescriptions()
     {
-        VertexData v = default;
+        Vertex v = default;
 
         return
         [

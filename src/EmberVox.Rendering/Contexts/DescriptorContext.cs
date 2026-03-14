@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.GraphicsPipeline;
+using EmberVox.Rendering.RenderingManagement;
 using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Types;
 using Silk.NET.Vulkan;

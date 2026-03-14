@@ -1,10 +1,11 @@
 ﻿using System.Numerics;
 using EmberVox.Core.Logging;
-using EmberVox.Core.Types;
 using EmberVox.Engine.Components;
 using EmberVox.Engine.VoxelUtils;
 using EmberVox.Platform;
 using EmberVox.Rendering;
+using EmberVox.Rendering.RenderingManagement;
+using EmberVox.Rendering.Types;
 using Silk.NET.Assimp;
 using Camera = EmberVox.Engine.Camera;
 using Material = EmberVox.Rendering.Types.Material;
@@ -115,7 +116,7 @@ public static class Program
     ];
     */
 
-    private static readonly List<VertexData> Vertices = [];
+    private static readonly List<Vertex> Vertices = [];
     private static readonly List<uint> Indices = [];
 
     private static readonly Camera MainCamera = new();
@@ -165,7 +166,14 @@ public static class Program
                 {
                     Vector3 vertexPosition = sceneMesh->MVertices[v];
                     Vector3 vertexUv = sceneMesh->MTextureCoords[0][v];
-                    Vertices.Add(new VertexData(vertexPosition, vertexUv.AsVector2(), Vector4.One));
+                    Vertices.Add(
+                        new Vertex
+                        {
+                            Position = vertexPosition,
+                            TexCoord = vertexUv.AsVector2(),
+                            Color = Vector4.One,
+                        }
+                    );
                 }
 
                 for (int f = 0; f < sceneMesh->MNumFaces; f++)
@@ -183,12 +191,21 @@ public static class Program
 
             Material roomMaterial = new Material(
                 vulkanRenderer,
-                Path.Combine(AppContext.BaseDirectory, "Textures", "viking_room.png")
+                new Texture2D(
+                    vulkanRenderer.DeviceContext,
+                    vulkanRenderer.CommandContext,
+                    Path.Combine(AppContext.BaseDirectory, "Textures", "viking_room.png")
+                )
             );
             vulkanRenderer.RegisterMaterial(roomMaterial);
 
             var vertices = Vertices
-                .Select(v => new VertexData(v.Position - new Vector3(1, 0, 0), v.TexCoord, v.Color))
+                .Select(v => new Vertex
+                {
+                    Position = v.Position - new Vector3(1, 0, 0),
+                    Color = v.Color,
+                    TexCoord = v.TexCoord,
+                })
                 .ToArray();
             var indices = Indices.ToArray();
             MeshComponent meshComponent = new()
@@ -206,11 +223,16 @@ public static class Program
 
             Material voxelMaterial = new Material(
                 vulkanRenderer,
-                Path.Combine(AppContext.BaseDirectory, "Textures", "atlas.png")
+                new NoiseTexture(
+                    vulkanRenderer.DeviceContext,
+                    vulkanRenderer.CommandContext,
+                    512,
+                    512
+                )
             );
             vulkanRenderer.RegisterMaterial(voxelMaterial);
 
-            List<VertexData> voxelVertices = [];
+            List<Vertex> voxelVertices = [];
             List<uint> voxelIndices = [];
             int totalFaces = 0;
 
