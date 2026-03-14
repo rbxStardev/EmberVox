@@ -2,7 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="..\EmberVox.Core\EmberVox.Core.csproj" />
     <ProjectReference Include="..\EmberVox.Platform\EmberVox.Platform.csproj" />
-    <ProjectReference Include="..\EmberVox.Engine\EmberVox.Engine.csproj" />
   </ItemGroup>
 
   <ItemGroup>

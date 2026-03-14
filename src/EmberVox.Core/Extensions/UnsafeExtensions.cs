@@ -29,6 +29,6 @@ public static unsafe class UnsafeExtensions
     extension<T>(ref T data)
         where T : unmanaged
     {
-        public Span<byte> AsBytes() => new Span<T>(ref data).AsBytes();
+        public ReadOnlySpan<byte> AsBytes() => new ReadOnlySpan<T>(ref data).AsBytes();
     }
 }

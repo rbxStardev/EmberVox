@@ -1,27 +1,25 @@
+using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal sealed class SyncContext : IDisposable
+public sealed class SyncContext : IResource
 {
     public Semaphore[] PresentCompleteSemaphores { get; private set; }
     public Semaphore[] RenderFinishedSemaphores { get; private set; }
     public Fence[] InFlightFences { get; private set; }
 
-    private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
     private readonly uint _maxFramesInFlight;
 
     public SyncContext(
-        Vk vk,
         DeviceContext deviceContext,
         SwapChainContext swapChainContext,
         uint maxFramesInFlight
     )
     {
-        _vk = vk;
         _deviceContext = deviceContext;
         _swapChainContext = swapChainContext;
         _maxFramesInFlight = maxFramesInFlight;
@@ -36,19 +34,19 @@ internal sealed class SyncContext : IDisposable
     public void Dispose()
     {
         foreach (Fence fence in InFlightFences)
-            _vk.DestroyFence(
+            _deviceContext.Api.DestroyFence(
                 _deviceContext.LogicalDevice,
                 fence,
                 ReadOnlySpan<AllocationCallbacks>.Empty
             );
         foreach (Semaphore semaphore in RenderFinishedSemaphores)
-            _vk.DestroySemaphore(
+            _deviceContext.Api.DestroySemaphore(
                 _deviceContext.LogicalDevice,
                 semaphore,
                 ReadOnlySpan<AllocationCallbacks>.Empty
             );
         foreach (Semaphore semaphore in PresentCompleteSemaphores)
-            _vk.DestroySemaphore(
+            _deviceContext.Api.DestroySemaphore(
                 _deviceContext.LogicalDevice,
                 semaphore,
                 ReadOnlySpan<AllocationCallbacks>.Empty
@@ -63,7 +61,7 @@ internal sealed class SyncContext : IDisposable
 
         Semaphore semaphore = default;
         if (
-            _vk.CreateSemaphore(
+            _deviceContext.Api.CreateSemaphore(
                 _deviceContext.LogicalDevice,
                 new ReadOnlySpan<SemaphoreCreateInfo>(ref semaphoreInfo),
                 ReadOnlySpan<AllocationCallbacks>.Empty,
@@ -85,7 +83,7 @@ internal sealed class SyncContext : IDisposable
 
         Fence fence = default;
         if (
-            _vk.CreateFence(
+            _deviceContext.Api.CreateFence(
                 _deviceContext.LogicalDevice,
                 new ReadOnlySpan<FenceCreateInfo>(ref fenceInfo),
                 ReadOnlySpan<AllocationCallbacks>.Empty,

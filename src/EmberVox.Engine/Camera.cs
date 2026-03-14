@@ -4,12 +4,12 @@ namespace EmberVox.Engine;
 
 public class Camera
 {
-    public Transform Transform { get; set; }
+    public TransformComponent TransformComponent { get; set; }
     public float FieldOfView { get; set; }
 
     public Camera()
     {
-        Transform = new Transform();
+        TransformComponent = new TransformComponent();
         FieldOfView = 70.0f;
     }
 }

@@ -1,11 +1,12 @@
 using EmberVox.Core.Logging;
+using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal sealed class SwapChainContext : IDisposable
+public sealed class SwapChainContext : IResource
 {
     public KhrSwapchain KhrSwapChainExtension { get; }
     public SwapchainKHR SwapChainKhr { get; private set; }
@@ -14,7 +15,6 @@ internal sealed class SwapChainContext : IDisposable
     public Format SwapChainImageFormat { get; }
     public Extent2D SwapChainExtent { get; private set; }
 
-    private readonly Vk _vk;
     private readonly SurfaceContext _surfaceContext;
     private readonly DeviceContext _deviceContext;
     private readonly IWindow _window;
@@ -24,21 +24,19 @@ internal sealed class SwapChainContext : IDisposable
     private SurfaceCapabilitiesKHR _surfaceCapabilities;
 
     public SwapChainContext(
-        Vk vk,
         SurfaceContext surfaceContext,
         DeviceContext deviceContext,
         IWindow window,
         Instance instance
     )
     {
-        _vk = vk;
         _surfaceContext = surfaceContext;
         _deviceContext = deviceContext;
         _window = window;
         _instance = instance;
 
         if (
-            !_vk.TryGetDeviceExtension(
+            !_deviceContext.Api.TryGetDeviceExtension(
                 _instance,
                 deviceContext.LogicalDevice,
                 out KhrSwapchain khrSwapChainExtension
@@ -69,7 +67,7 @@ internal sealed class SwapChainContext : IDisposable
     public void Dispose()
     {
         foreach (ImageView imageView in SwapChainImageViews)
-            _vk.DestroyImageView(
+            _deviceContext.Api.DestroyImageView(
                 _deviceContext.LogicalDevice,
                 imageView,
                 ReadOnlySpan<AllocationCallbacks>.Empty
@@ -94,7 +92,7 @@ internal sealed class SwapChainContext : IDisposable
         SwapChainKhr = CreateSwapChain(oldSwapChain);
 
         foreach (ImageView imageView in SwapChainImageViews)
-            _vk.DestroyImageView(
+            _deviceContext.Api.DestroyImageView(
                 _deviceContext.LogicalDevice,
                 imageView,
                 ReadOnlySpan<AllocationCallbacks>.Empty
@@ -294,7 +292,7 @@ internal sealed class SwapChainContext : IDisposable
             createInfo.Image = SwapChainImages[i];
 
             if (
-                _vk.CreateImageView(
+                _deviceContext.Api.CreateImageView(
                     _deviceContext.LogicalDevice,
                     &createInfo,
                     null,

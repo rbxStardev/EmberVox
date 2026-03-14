@@ -1,42 +1,47 @@
 using System.Runtime.CompilerServices;
+using EmberVox.Rendering.Buffers;
+using EmberVox.Rendering.GraphicsPipeline;
+using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Types;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal sealed class DescriptorContext : IDisposable
+public sealed class DescriptorContext : IResource
 {
     public DescriptorSet this[int index] => _descriptorSets[index];
 
-    private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
     private readonly DescriptorPool _descriptorPool;
-    private readonly List<DescriptorSet> _descriptorSets;
-    private readonly Texture2D _texture2D;
+    private DescriptorSet[] _descriptorSets = [];
+    private readonly IRenderable _renderTarget;
 
     public DescriptorContext(
-        Vk vk,
         DeviceContext deviceContext,
         GraphicsPipelineContext graphicsPipelineContext,
         uint descriptorCount,
         List<BufferContext> uniformBuffers,
-        Texture2D texture2D
+        IRenderable renderTarget
     )
     {
-        _vk = vk;
         _deviceContext = deviceContext;
         _graphicsPipelineContext = graphicsPipelineContext;
-        _texture2D = texture2D;
+        _renderTarget = renderTarget;
 
         _descriptorPool = CreateDescriptorPool(descriptorCount);
-        _descriptorSets = [];
         CreateDescriptorSets(descriptorCount, uniformBuffers);
     }
 
     public void Dispose()
     {
-        _vk.DestroyDescriptorPool(
+        _deviceContext.Api.FreeDescriptorSets(
+            _deviceContext.LogicalDevice,
+            _descriptorPool,
+            new ReadOnlySpan<DescriptorSet>(_descriptorSets)
+        );
+
+        _deviceContext.Api.DestroyDescriptorPool(
             _deviceContext.LogicalDevice,
             _descriptorPool,
             ReadOnlySpan<AllocationCallbacks>.Empty
@@ -64,7 +69,7 @@ internal sealed class DescriptorContext : IDisposable
             };
 
             DescriptorPool descriptorPool = default;
-            _vk.CreateDescriptorPool(
+            _deviceContext.Api.CreateDescriptorPool(
                 _deviceContext.LogicalDevice,
                 new ReadOnlySpan<DescriptorPoolCreateInfo>(ref poolInfo),
                 ReadOnlySpan<AllocationCallbacks>.Empty,
@@ -93,17 +98,17 @@ internal sealed class DescriptorContext : IDisposable
                 PSetLayouts = pLayouts,
             };
 
-            _descriptorSets.Clear();
+            _descriptorSets = new DescriptorSet[descriptorCount];
 
             Span<DescriptorSet> descriptorSets = new DescriptorSet[descriptorCount];
 
-            _vk.AllocateDescriptorSets(
+            _deviceContext.Api.AllocateDescriptorSets(
                 _deviceContext.LogicalDevice,
                 new ReadOnlySpan<DescriptorSetAllocateInfo>(ref allocateInfo),
                 descriptorSets
             );
 
-            _descriptorSets.AddRange(descriptorSets);
+            descriptorSets.CopyTo(new Span<DescriptorSet>(_descriptorSets));
 
             for (int i = 0; i < descriptorCount; i++)
             {
@@ -115,8 +120,8 @@ internal sealed class DescriptorContext : IDisposable
                 };
                 DescriptorImageInfo imageInfo = new()
                 {
-                    Sampler = _texture2D.Sampler,
-                    ImageView = _texture2D.ImageView,
+                    Sampler = _renderTarget.Sampler,
+                    ImageView = _renderTarget.ImageView,
                     ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
                 };
                 WriteDescriptorSet[] descriptorWrites =
@@ -143,7 +148,7 @@ internal sealed class DescriptorContext : IDisposable
                     },
                 ];
 
-                _vk.UpdateDescriptorSets(
+                _deviceContext.Api.UpdateDescriptorSets(
                     _deviceContext.LogicalDevice,
                     new ReadOnlySpan<WriteDescriptorSet>(descriptorWrites),
                     ReadOnlySpan<CopyDescriptorSet>.Empty

@@ -85,22 +85,10 @@ public static class VoxelDataUtils
     {
         Vector2[] uvs = VoxelTextureUtils.GetUVs(type, face);
 
-        Random colorRandom = new();
-        float colorStep = 1f / 255;
-
         return VoxelRawFaceData[face]
             .Select(
                 (vertex, i) =>
-                    new VertexData(
-                        position + vertex.Position,
-                        uvs[i],
-                        new Vector4(
-                            colorStep * colorRandom.Next(0, 255),
-                            colorStep * colorRandom.Next(0, 255),
-                            colorStep * colorRandom.Next(0, 255),
-                            1
-                        )
-                    )
+                    new VertexData(position + vertex.Position, uvs[i], new Vector4(1, 1, 1, 1))
             )
             .ToArray();
     }

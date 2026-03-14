@@ -1,15 +1,9 @@
-using EmberVox.Core.Types;
+using EmberVox.Rendering.Types;
 
 namespace EmberVox.Engine.Components;
 
 public record struct MeshComponent
 {
-    public VertexData[] Vertices;
-    public uint[] Indices;
-
-    public MeshComponent(VertexData[] vertices, uint[] indices)
-    {
-        Vertices = vertices;
-        Indices = indices;
-    }
+    public Mesh Mesh;
+    public Material Material;
 }
