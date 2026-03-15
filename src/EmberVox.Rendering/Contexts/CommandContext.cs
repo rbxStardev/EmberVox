@@ -1,34 +1,27 @@
 using System.ComponentModel;
-using EmberVox.Rendering.RenderPatterns;
+using EmberVox.Rendering.Buffers;
+using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal sealed class CommandContext : IDisposable
+public sealed class CommandContext : IResource
 {
     public CommandPool MainCommandPool { get; }
     public CommandBuffer[] CommandBuffers { get; private set; }
 
-    private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
-    private readonly GraphicsPipelineContext _graphicsPipelineContext;
     private readonly uint _maxFramesInFlight;
 
-    private readonly List<IRenderPattern> _renderPatterns = [];
-
     public CommandContext(
-        Vk vk,
         DeviceContext deviceContext,
         SwapChainContext swapChainContext,
-        GraphicsPipelineContext graphicsPipelineContext,
         uint maxFramesInFlight
     )
     {
-        _vk = vk;
         _deviceContext = deviceContext;
         _swapChainContext = swapChainContext;
-        _graphicsPipelineContext = graphicsPipelineContext;
         _maxFramesInFlight = maxFramesInFlight;
 
         MainCommandPool = CreateCommandPool(_deviceContext.GraphicsQueue.Index);
@@ -39,7 +32,7 @@ internal sealed class CommandContext : IDisposable
 
     public void Dispose()
     {
-        _vk.DestroyCommandPool(
+        _deviceContext.Api.DestroyCommandPool(
             _deviceContext.LogicalDevice,
             MainCommandPool,
             ReadOnlySpan<AllocationCallbacks>.Empty
@@ -61,7 +54,7 @@ internal sealed class CommandContext : IDisposable
         CommandBuffer commandBuffer = CommandBuffers[currentFrame];
 
         CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
-        var beginResult = _vk.BeginCommandBuffer(
+        var beginResult = _deviceContext.Api.BeginCommandBuffer(
             commandBuffer,
             new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
         );
@@ -112,7 +105,7 @@ internal sealed class CommandContext : IDisposable
             PColorAttachments = &attachmentInfo,
         };
 
-        _vk.CmdBeginRendering(commandBuffer, new ReadOnlySpan<RenderingInfo>(ref renderingInfo));
+        _deviceContext.Api.CmdBeginRendering(commandBuffer, new ReadOnlySpan<RenderingInfo>(ref renderingInfo));
 
         Viewport viewport = new(
             0.0f,
@@ -122,13 +115,13 @@ internal sealed class CommandContext : IDisposable
             0.0f,
             1.0f
         );
-        _vk.CmdSetViewport(commandBuffer, 0, new ReadOnlySpan<Viewport>(ref viewport));
+        _deviceContext.Api.CmdSetViewport(commandBuffer, 0, new ReadOnlySpan<Viewport>(ref viewport));
 
         Rect2D scissor = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
-        _vk.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
+        _deviceContext.Api.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
 
         DescriptorSet descriptorSet = descriptorContext[(int)imageIndex];
-        _vk.CmdBindDescriptorSets(
+        _deviceContext.Api.CmdBindDescriptorSets(
             commandBuffer,
             PipelineBindPoint.Graphics,
             _graphicsPipelineContext.PipelineLayout,
@@ -138,7 +131,7 @@ internal sealed class CommandContext : IDisposable
         );
 
         // --> Draw Mesh <--
-        _vk.CmdBindPipeline(
+        _deviceContext.Api.CmdBindPipeline(
             commandBuffer,
             PipelineBindPoint.Graphics,
             _graphicsPipelineContext.GraphicsPipeline
@@ -146,7 +139,7 @@ internal sealed class CommandContext : IDisposable
         //Console.WriteLine($"Drawing frame, imageIndex: {imageIndex}, currentFrame: {currentFrame}");
 
         Buffer vertexBufferBuffer = vertexBuffer.Buffer;
-        _vk.CmdBindVertexBuffers(
+        _deviceContext.Api.CmdBindVertexBuffers(
             commandBuffer,
             0,
             new ReadOnlySpan<Buffer>(ref vertexBufferBuffer),
@@ -154,12 +147,12 @@ internal sealed class CommandContext : IDisposable
         );
 
         Buffer indexBufferBuffer = indexBuffer.Buffer;
-        _vk.CmdBindIndexBuffer(commandBuffer, indexBufferBuffer, 0, IndexType.Uint32);
+        _deviceContext.Api.CmdBindIndexBuffer(commandBuffer, indexBufferBuffer, 0, IndexType.Uint32);
 
-        _vk.CmdDrawIndexed(commandBuffer, 36, 1, 0, 0, 0);
+        _deviceContext.Api.CmdDrawIndexed(commandBuffer, 36, 1, 0, 0, 0);
 
         // --> End Frame <--
-        _vk.CmdEndRendering(commandBuffer);
+        _deviceContext.Api.CmdEndRendering(commandBuffer);
 
         TransitionImageLayout(
             commandBuffer,
@@ -172,13 +165,12 @@ internal sealed class CommandContext : IDisposable
             PipelineStageFlags2.BottomOfPipeBit
         );
 
-        var endResult = _vk.EndCommandBuffer(commandBuffer);
+        var endResult = _deviceContext.Api.EndCommandBuffer(commandBuffer);
         //Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
     }
     */
 
     public unsafe void BeginCommandBufferRecording(
-        DescriptorContext descriptorContext,
         DepthContext depthContext,
         uint imageIndex,
         int currentFrame
@@ -187,7 +179,7 @@ internal sealed class CommandContext : IDisposable
         CommandBuffer commandBuffer = CommandBuffers[currentFrame];
 
         CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
-        var beginResult = _vk.BeginCommandBuffer(
+        var beginResult = _deviceContext.Api.BeginCommandBuffer(
             commandBuffer,
             new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
         );
@@ -216,7 +208,7 @@ internal sealed class CommandContext : IDisposable
             ImageAspectFlags.DepthBit
         );
 
-        ClearValue clearColor = new(new ClearColorValue(0.5f, 0.5f, 0.5f, 1.0f));
+        ClearValue clearColor = new(new ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
         RenderingAttachmentInfo attachmentInfo = new()
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -252,7 +244,10 @@ internal sealed class CommandContext : IDisposable
             PDepthAttachment = &depthAttachmentInfo,
         };
 
-        _vk.CmdBeginRendering(commandBuffer, new ReadOnlySpan<RenderingInfo>(ref renderingInfo));
+        _deviceContext.Api.CmdBeginRendering(
+            commandBuffer,
+            new ReadOnlySpan<RenderingInfo>(ref renderingInfo)
+        );
 
         Viewport viewport = new(
             0.0f,
@@ -262,37 +257,21 @@ internal sealed class CommandContext : IDisposable
             0.0f,
             1.0f
         );
-        _vk.CmdSetViewport(commandBuffer, 0, new ReadOnlySpan<Viewport>(ref viewport));
+        _deviceContext.Api.CmdSetViewport(
+            commandBuffer,
+            0,
+            new ReadOnlySpan<Viewport>(ref viewport)
+        );
 
         Rect2D scissor = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
-        _vk.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
-
-        DescriptorSet descriptorSet = descriptorContext[(int)imageIndex];
-        _vk.CmdBindDescriptorSets(
-            commandBuffer,
-            PipelineBindPoint.Graphics,
-            _graphicsPipelineContext.PipelineLayout,
-            0,
-            new ReadOnlySpan<DescriptorSet>(ref descriptorSet),
-            ReadOnlySpan<uint>.Empty
-        );
-    }
-
-    public void Draw(IRenderPattern renderPattern)
-    {
-        _renderPatterns.Add(renderPattern);
+        _deviceContext.Api.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
     }
 
     public void EndCommandBufferRecording(uint imageIndex, int currentFrame)
     {
         CommandBuffer commandBuffer = CommandBuffers[currentFrame];
 
-        foreach (IRenderPattern renderPattern in _renderPatterns)
-        {
-            renderPattern.Render(_vk, commandBuffer, _graphicsPipelineContext.GraphicsPipeline);
-        }
-
-        _vk.CmdEndRendering(commandBuffer);
+        _deviceContext.Api.CmdEndRendering(commandBuffer);
 
         TransitionImageLayout(
             commandBuffer,
@@ -306,10 +285,8 @@ internal sealed class CommandContext : IDisposable
             ImageAspectFlags.ColorBit
         );
 
-        var endResult = _vk.EndCommandBuffer(commandBuffer);
+        var endResult = _deviceContext.Api.EndCommandBuffer(commandBuffer);
         //Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
-
-        _renderPatterns.Clear();
     }
 
     public CommandBuffer BeginSingleTimeCommands()
@@ -322,7 +299,7 @@ internal sealed class CommandContext : IDisposable
             CommandBufferCount = 1,
         };
         CommandBuffer commandBuffer = default;
-        _vk.AllocateCommandBuffers(
+        _deviceContext.Api.AllocateCommandBuffers(
             _deviceContext.LogicalDevice,
             new ReadOnlySpan<CommandBufferAllocateInfo>(ref allocateInfo),
             new Span<CommandBuffer>(ref commandBuffer)
@@ -333,7 +310,7 @@ internal sealed class CommandContext : IDisposable
             SType = StructureType.CommandBufferBeginInfo,
             Flags = CommandBufferUsageFlags.OneTimeSubmitBit,
         };
-        _vk.BeginCommandBuffer(
+        _deviceContext.Api.BeginCommandBuffer(
             commandBuffer,
             new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
         );
@@ -343,7 +320,7 @@ internal sealed class CommandContext : IDisposable
 
     public unsafe void EndSingleTimeCommands(CommandBuffer commandBuffer)
     {
-        _vk.EndCommandBuffer(commandBuffer);
+        _deviceContext.Api.EndCommandBuffer(commandBuffer);
 
         SubmitInfo submitInfo = new()
         {
@@ -351,12 +328,12 @@ internal sealed class CommandContext : IDisposable
             CommandBufferCount = 1,
             PCommandBuffers = &commandBuffer,
         };
-        _vk.QueueSubmit(
+        _deviceContext.Api.QueueSubmit(
             _deviceContext.GraphicsQueue.Queue,
             new ReadOnlySpan<SubmitInfo>(ref submitInfo),
             default
         );
-        _vk.QueueWaitIdle(_deviceContext.GraphicsQueue.Queue);
+        _deviceContext.Api.QueueWaitIdle(_deviceContext.GraphicsQueue.Queue);
     }
 
     public unsafe void CopyBuffer(
@@ -368,7 +345,7 @@ internal sealed class CommandContext : IDisposable
         CommandBuffer commandBuffer = BeginSingleTimeCommands();
 
         BufferCopy copy = new() { Size = size };
-        _vk.CmdCopyBuffer(
+        _deviceContext.Api.CmdCopyBuffer(
             commandBuffer,
             srcBufferContext.Buffer,
             dstBufferContext.Buffer,
@@ -392,7 +369,7 @@ internal sealed class CommandContext : IDisposable
             ImageExtent = new Extent3D(width, height, 1),
         };
 
-        _vk.CmdCopyBufferToImage(
+        _deviceContext.Api.CmdCopyBufferToImage(
             commandBuffer,
             bufferContext.Buffer,
             image,
@@ -419,7 +396,7 @@ internal sealed class CommandContext : IDisposable
         };
 
         if (
-            _vk.AllocateCommandBuffers(
+            _deviceContext.Api.AllocateCommandBuffers(
                 _deviceContext.LogicalDevice,
                 new ReadOnlySpan<CommandBufferAllocateInfo>(ref allocInfo),
                 bufferAllocRef
@@ -442,7 +419,7 @@ internal sealed class CommandContext : IDisposable
 
         CommandPool commandPool = default;
         if (
-            _vk.CreateCommandPool(
+            _deviceContext.Api.CreateCommandPool(
                 _deviceContext.LogicalDevice,
                 new ReadOnlySpan<CommandPoolCreateInfo>(ref poolInfo),
                 ReadOnlySpan<AllocationCallbacks>.Empty,
@@ -495,13 +472,18 @@ internal sealed class CommandContext : IDisposable
             PImageMemoryBarriers = &barrier,
         };
 
-        _vk.CmdPipelineBarrier2(
+        _deviceContext.Api.CmdPipelineBarrier2(
             commandBuffer,
             new ReadOnlySpan<DependencyInfo>(ref dependencyInfo)
         );
     }
 
-    public void TransitionImageLayout(Image image, uint mipLevels, ImageLayout oldLayout, ImageLayout newLayout)
+    public void TransitionImageLayout(
+        Image image,
+        uint mipLevels,
+        ImageLayout oldLayout,
+        ImageLayout newLayout
+    )
     {
         CommandBuffer commandBuffer = BeginSingleTimeCommands();
 
@@ -511,7 +493,13 @@ internal sealed class CommandContext : IDisposable
             OldLayout = oldLayout,
             NewLayout = newLayout,
             Image = image,
-            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, mipLevels, 0, 1),
+            SubresourceRange = new ImageSubresourceRange(
+                ImageAspectFlags.ColorBit,
+                0,
+                mipLevels,
+                0,
+                1
+            ),
         };
 
         PipelineStageFlags sourceStage;
@@ -541,7 +529,7 @@ internal sealed class CommandContext : IDisposable
             throw new InvalidEnumArgumentException("unsupported layout transition!");
         }
 
-        _vk.CmdPipelineBarrier(
+        _deviceContext.Api.CmdPipelineBarrier(
             commandBuffer,
             sourceStage,
             destinationStage,

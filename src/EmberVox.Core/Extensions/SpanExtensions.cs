@@ -12,6 +12,6 @@ public static class SpanExtensions
     }
     */
 
-    public static Span<byte> AsBytes<T>(this Span<T> source)
+    public static ReadOnlySpan<byte> AsBytes<T>(this ReadOnlySpan<T> source)
         where T : unmanaged => MemoryMarshal.Cast<T, byte>(source);
 }

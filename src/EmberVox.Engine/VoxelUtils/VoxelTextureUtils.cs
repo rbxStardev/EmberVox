@@ -7,6 +7,11 @@ internal static class VoxelTextureUtils
     //TODO -> try texture arrays instead of texture atlases
     private const int AtlasSize = 16;
 
+    private static Vector2[] GetUnmappedUVs()
+    {
+        return [new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1)];
+    }
+
     private static Vector2[] GetAtlasUVs(int column, int row)
     {
         float size = 1.0f / AtlasSize;
@@ -45,8 +50,11 @@ internal static class VoxelTextureUtils
         },
     };
 
-    public static Vector2[] GetUVs(VoxelType voxelType, VoxelFace voxelFace)
+    public static Vector2[] GetUVs(VoxelType voxelType, VoxelFace voxelFace, bool mapped)
     {
+        if (!mapped)
+            return GetUnmappedUVs();
+
         if (
             VoxelFaceUvOverrides.TryGetValue(voxelType, out var faceDict)
             && faceDict.TryGetValue(voxelFace, out var overrideUVs)

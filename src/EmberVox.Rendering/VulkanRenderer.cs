@@ -3,17 +3,17 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using EmberVox.Core.Extensions;
 using EmberVox.Core.Logging;
-using EmberVox.Engine;
-using EmberVox.Engine.Components;
+using EmberVox.Platform;
+using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
-using EmberVox.Rendering.RenderPatterns;
+using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Types;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
-using Silk.NET.Windowing;
+using Buffer = Silk.NET.Vulkan.Buffer;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering;
@@ -34,67 +34,63 @@ public sealed class VulkanRenderer : IDisposable
     private const bool EnableValidationLayers = false;
 #endif
 
-    private readonly IWindow _window;
-    private readonly Camera _camera;
+    private readonly WindowContext _windowContext;
 
-    private readonly Vk _vk;
     private readonly Instance _instance;
     private readonly DefaultDebugContext _debugContext;
-    private readonly SurfaceContext _surfaceContext;
-    private readonly DeviceContext _deviceContext;
-    private readonly SwapChainContext _swapChainContext;
-    private readonly GraphicsPipelineContext _graphicsPipelineContext;
-    private readonly CommandContext _commandContext;
-    private readonly SyncContext _syncContext;
+
+    public ResourceManager ResourceManager { get; }
+
+    public SurfaceContext SurfaceContext { get; }
+    public DeviceContext DeviceContext { get; }
+    public SwapChainContext SwapChainContext { get; }
+    public CommandContext CommandContext { get; }
+    public SyncContext SyncContext { get; }
+
+    public DepthContext DepthContext { get; private set; }
 
     //private readonly BufferContext _vertexBuffer;
     //private readonly BufferContext _indexBuffer;
-    private readonly List<BufferContext> _uniformBuffers;
-    private readonly DescriptorContext _descriptorContext;
-    private readonly Dictionary<MeshComponent, MeshRenderInfo> _meshesToRender = new();
+    public readonly List<BufferContext> UniformBuffers;
+
+    private readonly Dictionary<Material, List<Mesh>> _meshesToRender = [];
 
     private int _frameIndex;
     private bool _frameBufferResized;
 
-    private readonly Texture2D _texture2D;
-    private DepthContext _depthContext;
-
-    public VulkanRenderer(IWindow window, Camera camera)
+    public VulkanRenderer(WindowContext window)
     {
-        _window = window;
-        _camera = camera;
+        Vk vk = Vk.GetApi();
+        _windowContext = window;
 
         Logger.Info?.WriteLine("~ Initializing Vulkan... ~");
         Console.WriteLine();
-        _vk = Vk.GetApi();
-
         {
             Logger.Debug?.WriteLine("-----> Creating Instance... <-----");
-            _instance = CreateInstance();
+            _instance = CreateInstance(vk);
             Logger.Debug?.WriteLine("-----> Instance creation: OK <-----");
             Console.WriteLine();
 
             Logger.Debug?.WriteLine("-----> Creating DebugMessenger... <-----");
-            _debugContext = new DefaultDebugContext(_vk, _instance);
+            _debugContext = new DefaultDebugContext(vk, _instance);
             Logger.Debug?.WriteLine("-----> DebugMessenger creation: OK <-----");
             Console.WriteLine();
 
             Logger.Debug?.WriteLine("-----> Creating SurfaceContext... <-----");
-            _surfaceContext = new SurfaceContext(_vk, _instance, _window);
+            SurfaceContext = new SurfaceContext(vk, _instance, _windowContext.Handle);
             Logger.Debug?.WriteLine("-----> SurfaceContext creation: OK <-----");
             Console.WriteLine();
 
             Logger.Debug?.WriteLine("-----> Creating DeviceContext... <-----");
-            _deviceContext = new DeviceContext(_vk, _instance, _surfaceContext);
+            DeviceContext = new DeviceContext(vk, _instance, SurfaceContext);
             Logger.Debug?.WriteLine("-----> DeviceContext creation: OK <-----");
             Console.WriteLine();
 
             Logger.Debug?.WriteLine("-----> Creating SwapChainContext... <-----");
-            _swapChainContext = new SwapChainContext(
-                _vk,
-                _surfaceContext,
-                _deviceContext,
-                _window,
+            SwapChainContext = new SwapChainContext(
+                SurfaceContext,
+                DeviceContext,
+                _windowContext.Handle,
                 _instance
             );
             Logger.Debug?.WriteLine("-----> SwapChainContext creation: OK <-----");
@@ -107,41 +103,17 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Info?.WriteLine("~ Initializing Graphics Pipeline... ~");
         Console.WriteLine();
 
-        _depthContext = new DepthContext(_vk, _deviceContext, _swapChainContext);
+        DepthContext = new DepthContext(DeviceContext, SwapChainContext);
 
         {
-            _graphicsPipelineContext = new GraphicsPipelineContext(
-                _vk,
-                _deviceContext,
-                _swapChainContext,
-                _depthContext
-            );
             Console.WriteLine();
 
-            _commandContext = new CommandContext(
-                _vk,
-                _deviceContext,
-                _swapChainContext,
-                _graphicsPipelineContext,
-                MaxFramesInFlight
-            );
-            _syncContext = new SyncContext(
-                _vk,
-                _deviceContext,
-                _swapChainContext,
-                MaxFramesInFlight
-            );
+            CommandContext = new CommandContext(DeviceContext, SwapChainContext, MaxFramesInFlight);
+            SyncContext = new SyncContext(DeviceContext, SwapChainContext, MaxFramesInFlight);
         }
 
         Logger.Info?.WriteLine("~ Graphics Pipeline successfully initialized. ~");
         Console.WriteLine();
-
-        _texture2D = new Texture2D(
-            _vk,
-            _deviceContext,
-            _commandContext,
-            Path.Combine(AppContext.BaseDirectory, "Textures", "viking_room.png")
-        );
 
         Logger.Info?.WriteLine("~ Initializing Buffers... ~");
         Console.WriteLine();
@@ -149,28 +121,48 @@ public sealed class VulkanRenderer : IDisposable
         {
             // Uniforms
 
-            _uniformBuffers = [];
+            UniformBuffers = [];
             CreateUniformBuffers();
         }
 
         Logger.Info?.WriteLine("~ Buffers successfully initialized. ~");
         Console.WriteLine();
 
-        _descriptorContext = new DescriptorContext(
-            _vk,
-            _deviceContext,
-            _graphicsPipelineContext,
-            (uint)_swapChainContext.SwapChainImages.Length,
-            _uniformBuffers,
-            _texture2D
-        );
+        ResourceManager = new ResourceManager();
 
-        PlugEvents();
+        //PlugEvents();
     }
 
     public void Dispose()
     {
         Logger.Debug?.WriteLine("Application closed, disposing...");
+
+        {
+            ResourceManager.Dispose();
+
+            foreach (BufferContext uniformBuffer in UniformBuffers)
+            {
+                uniformBuffer.Dispose();
+                Logger.Debug?.WriteLine("-> Disposed UniformBuffer");
+            }
+
+            SyncContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed SyncContext");
+
+            CommandContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed CommandContext");
+
+            DepthContext.Dispose();
+
+            SwapChainContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed SwapChainContext");
+
+            DeviceContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed DeviceContext");
+
+            SurfaceContext.Dispose();
+            Logger.Debug?.WriteLine("-> Disposed SurfaceContext");
+        }
 
         if (EnableValidationLayers)
         {
@@ -178,58 +170,10 @@ public sealed class VulkanRenderer : IDisposable
             Logger.Debug?.WriteLine("-> Disposed DebugContext");
         }
 
-        {
-            foreach (
-                (MeshComponent meshComponent, MeshRenderInfo meshRenderInfo) in _meshesToRender
-            )
-            {
-                meshRenderInfo.Dispose();
-            }
-
-            _descriptorContext.Dispose();
-            Logger.Debug?.WriteLine("-> Disposed DescriptorContext");
-
-            foreach (BufferContext uniformBuffer in _uniformBuffers)
-            {
-                uniformBuffer.Dispose();
-                Logger.Debug?.WriteLine("-> Disposed UniformBuffer");
-            }
-
-            _texture2D.Dispose();
-
-            /*
-            _indexBuffer.Dispose();
-            Logger.Debug?.WriteLine("-> Disposed IndexBuffer");
-
-            _vertexBuffer.Dispose();
-            Logger.Debug?.WriteLine("-> Disposed VertexBuffer");
-            */
-
-            _syncContext.Dispose();
-            Logger.Debug?.WriteLine("-> Disposed SyncContext");
-
-            _commandContext.Dispose();
-            Logger.Debug?.WriteLine("-> Disposed CommandContext");
-
-            _graphicsPipelineContext.Dispose();
-            Logger.Debug?.WriteLine("-> Disposed GraphicsPipelineContext");
-
-            _depthContext.Dispose();
-
-            _swapChainContext.Dispose();
-            Logger.Debug?.WriteLine("-> Disposed SwapChainContext");
-
-            _surfaceContext.Dispose();
-            Logger.Debug?.WriteLine("-> Disposed SurfaceContext");
-
-            _deviceContext.Dispose();
-            Logger.Debug?.WriteLine("-> Disposed DeviceContext");
-        }
-
-        _vk.DestroyInstance(_instance, ReadOnlySpan<AllocationCallbacks>.Empty);
+        DeviceContext.Api.DestroyInstance(_instance, ReadOnlySpan<AllocationCallbacks>.Empty);
         Logger.Debug?.WriteLine("-> Disposed Vulkan Instance");
 
-        _vk.Dispose();
+        DeviceContext.Api.Dispose();
         Logger.Debug?.WriteLine("-> Disposed Vulkan API");
 
         Logger.Debug?.WriteLine("Application successfully disposed, exiting...");
@@ -239,88 +183,42 @@ public sealed class VulkanRenderer : IDisposable
 
     private void PlugEvents()
     {
-        _window.Render += WindowOnRender;
-        _window.FramebufferResize += WindowOnFramebufferResize;
+        //_windowContext.Handle.Render += WindowOnRender;
+        //_windowContext.Handle.FramebufferResize += WindowOnFramebufferResize;
     }
 
     public void MainLoop()
     {
-        _window.Run();
-
-        _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
+        DeviceContext.Api.DeviceWaitIdle(DeviceContext.LogicalDevice);
     }
 
-    public void RegisterMesh(MeshComponent mesh)
+    public void RegisterMaterial(Material material)
     {
-        // Vertex
-        ulong vertexBufferSize = (ulong)mesh.Vertices.AsBytes().Length;
-
-        BufferContext stagingBuffer = new(
-            _vk,
-            _deviceContext,
-            vertexBufferSize,
-            BufferUsageFlags.TransferSrcBit
-        );
-        mesh.Vertices.AsBytes().CopyTo(stagingBuffer.MappedMemory);
-
-        BufferContext vertexBuffer = new BufferContext(
-            _vk,
-            _deviceContext,
-            vertexBufferSize,
-            BufferUsageFlags.TransferDstBit | BufferUsageFlags.VertexBufferBit,
-            MemoryPropertyFlags.DeviceLocalBit
-        );
-
-        _commandContext.CopyBuffer(stagingBuffer, vertexBuffer, vertexBufferSize);
-        stagingBuffer.Dispose();
-
-        // Indices
-
-        ulong indexBufferSize = (ulong)mesh.Indices.AsBytes().Length;
-
-        stagingBuffer = new BufferContext(
-            _vk,
-            _deviceContext,
-            indexBufferSize,
-            BufferUsageFlags.TransferSrcBit
-        );
-        mesh.Indices.AsBytes().CopyTo(stagingBuffer.MappedMemory);
-
-        BufferContext indexBuffer = new BufferContext(
-            _vk,
-            _deviceContext,
-            indexBufferSize,
-            BufferUsageFlags.TransferDstBit | BufferUsageFlags.IndexBufferBit,
-            MemoryPropertyFlags.DeviceLocalBit
-        );
-
-        _commandContext.CopyBuffer(stagingBuffer, indexBuffer, indexBufferSize);
-        stagingBuffer.Dispose();
-
-        // Mesh Render Info
-        MeshRenderInfo meshRenderInfo = new MeshRenderInfo(
-            vertexBuffer,
-            indexBuffer,
-            (uint)mesh.Indices.Length
-        );
-
-        _meshesToRender[mesh] = meshRenderInfo;
+        _meshesToRender[material] = [];
+        ResourceManager.SubmitResource(material.GraphicsPipelineContext);
+        ResourceManager.SubmitResource(material.Renderable);
     }
 
-    private void WindowOnFramebufferResize(Vector2D<int> newSize) => _frameBufferResized = true;
-
-    private unsafe void WindowOnRender(double deltaTime)
+    public void RegisterMesh(Mesh mesh, Material material)
     {
-        _window.Title = $"EmberVox: Vulkan - {(int)(1.0 / deltaTime)} FPS";
+        _meshesToRender[material].Add(mesh);
+        ResourceManager.SubmitResource(mesh);
+    }
 
-        Semaphore presentCompleteSemaphore = _syncContext.PresentCompleteSemaphores[_frameIndex];
-        Fence drawFence = _syncContext.InFlightFences[_frameIndex];
-        CommandBuffer commandBuffer = _commandContext.CommandBuffers[_frameIndex];
-        SwapchainKHR swapchain = _swapChainContext.SwapChainKhr;
+    public void WindowOnFramebufferResize(Vector2D<int> newSize) => _frameBufferResized = true;
+
+    public unsafe void WindowOnRender(double deltaTime, Matrix4x4 view, Matrix4x4 projection)
+    {
+        _windowContext.Handle.Title = $"EmberVox: Vulkan - {(int)(1.0 / deltaTime)} FPS";
+
+        Semaphore presentCompleteSemaphore = SyncContext.PresentCompleteSemaphores[_frameIndex];
+        Fence drawFence = SyncContext.InFlightFences[_frameIndex];
+        CommandBuffer commandBuffer = CommandContext.CommandBuffers[_frameIndex];
+        SwapchainKHR swapchain = SwapChainContext.SwapChainKhr;
 
         if (
-            _vk.WaitForFences(
-                _deviceContext.LogicalDevice,
+            DeviceContext.Api.WaitForFences(
+                DeviceContext.LogicalDevice,
                 new ReadOnlySpan<Fence>(ref drawFence),
                 true,
                 ulong.MaxValue
@@ -329,9 +227,9 @@ public sealed class VulkanRenderer : IDisposable
             throw new Exception("Failed to wait for fence!");
 
         uint imageIndex = 0;
-        Result result = _swapChainContext.KhrSwapChainExtension.AcquireNextImage(
-            _deviceContext.LogicalDevice,
-            _swapChainContext.SwapChainKhr,
+        Result result = SwapChainContext.KhrSwapChainExtension.AcquireNextImage(
+            DeviceContext.LogicalDevice,
+            SwapChainContext.SwapChainKhr,
             ulong.MaxValue,
             presentCompleteSemaphore,
             default,
@@ -350,10 +248,13 @@ public sealed class VulkanRenderer : IDisposable
             throw new Exception("Failed to acquire swap chain image!");
         }
 
-        Semaphore renderFinishedSemaphore = _syncContext.RenderFinishedSemaphores[imageIndex];
+        Semaphore renderFinishedSemaphore = SyncContext.RenderFinishedSemaphores[imageIndex];
 
-        _vk.ResetFences(_deviceContext.LogicalDevice, new ReadOnlySpan<Fence>(ref drawFence));
-        _vk.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None);
+        DeviceContext.Api.ResetFences(
+            DeviceContext.LogicalDevice,
+            new ReadOnlySpan<Fence>(ref drawFence)
+        );
+        DeviceContext.Api.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None);
 
         /*
         _commandContext.RecordCommandBuffer(
@@ -364,21 +265,54 @@ public sealed class VulkanRenderer : IDisposable
             _indexBuffer
         );
         */
-        _commandContext.BeginCommandBufferRecording(
-            _descriptorContext,
-            _depthContext,
-            imageIndex,
-            _frameIndex
-        );
+        CommandContext.BeginCommandBufferRecording(DepthContext, imageIndex, _frameIndex);
 
-        foreach ((MeshComponent mesh, MeshRenderInfo meshRenderInfo) in _meshesToRender)
+        foreach (KeyValuePair<Material, List<Mesh>> keyValuePair in _meshesToRender)
         {
-            _commandContext.Draw(new MeshRenderPattern(meshRenderInfo));
+            DeviceContext.Api.CmdBindPipeline(
+                commandBuffer,
+                PipelineBindPoint.Graphics,
+                keyValuePair.Key.GraphicsPipelineContext.GraphicsPipeline
+            );
+
+            DescriptorSet descriptorSet = keyValuePair
+                .Key
+                .GraphicsPipelineContext
+                .DescriptorContext[(int)imageIndex];
+            DeviceContext.Api.CmdBindDescriptorSets(
+                commandBuffer,
+                PipelineBindPoint.Graphics,
+                keyValuePair.Key.GraphicsPipelineContext.PipelineLayout,
+                0,
+                new ReadOnlySpan<DescriptorSet>(ref descriptorSet),
+                ReadOnlySpan<uint>.Empty
+            );
+
+            foreach (Mesh mesh in keyValuePair.Value)
+            {
+                Buffer vertexBuffer = mesh.VertexBuffer.Buffer;
+                DeviceContext.Api.CmdBindVertexBuffers(
+                    commandBuffer,
+                    0,
+                    new ReadOnlySpan<Buffer>(ref vertexBuffer),
+                    new ReadOnlySpan<ulong>([0])
+                );
+
+                Buffer indexBuffer = mesh.IndexBuffer.Buffer;
+                DeviceContext.Api.CmdBindIndexBuffer(
+                    commandBuffer,
+                    indexBuffer,
+                    0,
+                    IndexType.Uint32
+                );
+
+                DeviceContext.Api.CmdDrawIndexed(commandBuffer, mesh.IndexCount, 1, 0, 0, 0);
+            }
         }
 
-        _commandContext.EndCommandBufferRecording(imageIndex, _frameIndex);
+        CommandContext.EndCommandBufferRecording(imageIndex, _frameIndex);
 
-        UpdateUniformBuffer((int)imageIndex);
+        UpdateUniformBuffer((int)imageIndex, view, projection);
 
         PipelineStageFlags waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
         SubmitInfo submitInfo = new()
@@ -393,8 +327,8 @@ public sealed class VulkanRenderer : IDisposable
             PSignalSemaphores = &renderFinishedSemaphore,
         };
 
-        var submitResult = _vk.QueueSubmit(
-            _deviceContext.GraphicsQueue.Queue,
+        var submitResult = DeviceContext.Api.QueueSubmit(
+            DeviceContext.GraphicsQueue.Queue,
             new ReadOnlySpan<SubmitInfo>(ref submitInfo),
             drawFence
         );
@@ -410,8 +344,8 @@ public sealed class VulkanRenderer : IDisposable
             PImageIndices = &imageIndex,
         };
 
-        result = _swapChainContext.KhrSwapChainExtension.QueuePresent(
-            _deviceContext.PresentQueue.Queue,
+        result = SwapChainContext.KhrSwapChainExtension.QueuePresent(
+            DeviceContext.PresentQueue.Queue,
             ref presentInfoKhr
         );
 
@@ -434,13 +368,16 @@ public sealed class VulkanRenderer : IDisposable
 
     private void RecreateSwapChain()
     {
-        while (_window.FramebufferSize.X == 0 || _window.FramebufferSize.Y == 0)
-            _window.DoEvents();
+        while (
+            _windowContext.Handle.FramebufferSize.X == 0
+            || _windowContext.Handle.FramebufferSize.Y == 0
+        )
+            _windowContext.Handle.DoEvents();
 
-        _vk.DeviceWaitIdle(_deviceContext.LogicalDevice);
-        _swapChainContext.RecreateSwapChain();
-        _depthContext.Dispose();
-        _depthContext = new DepthContext(_vk, _deviceContext, _swapChainContext);
+        DeviceContext.Api.DeviceWaitIdle(DeviceContext.LogicalDevice);
+        SwapChainContext.RecreateSwapChain();
+        DepthContext.Dispose();
+        DepthContext = new DepthContext(DeviceContext, SwapChainContext);
     }
 
     #region UniformBufferHandling
@@ -449,43 +386,40 @@ public sealed class VulkanRenderer : IDisposable
     {
         ulong bufferSize = (ulong)Unsafe.SizeOf<UniformBufferObject>();
 
-        for (int i = 0; i < _swapChainContext.SwapChainImages.Length; i++)
+        for (int i = 0; i < SwapChainContext.SwapChainImages.Length; i++)
         {
             BufferContext uniformBuffer = new BufferContext(
-                _vk,
-                _deviceContext,
+                DeviceContext,
                 bufferSize,
                 BufferUsageFlags.UniformBufferBit
             );
-            _uniformBuffers.Add(uniformBuffer);
+            UniformBuffers.Add(uniformBuffer);
         }
     }
 
-    private void UpdateUniformBuffer(int currentImage)
+    private void UpdateUniformBuffer(int currentImage, Matrix4x4 view, Matrix4x4 projection)
     {
         UniformBufferObject uniformBufferObject = new()
         {
-            Model =
-                Matrix4x4.CreateFromQuaternion(
-                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, float.Pi)
-                )
-                * Matrix4x4.CreateFromQuaternion(_camera.Transform.Rotation)
-                * Matrix4x4.CreateTranslation(Vector3.UnitZ + _camera.Transform.Position)
-                * Matrix4x4.CreateScale(_camera.Transform.Scale),
-            View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
-            Proj = Matrix4x4.CreatePerspectiveFieldOfView(
-                float.DegreesToRadians(_camera.FieldOfView),
-                (float)_swapChainContext.SwapChainExtent.Width
-                    / _swapChainContext.SwapChainExtent.Height,
+            Model = Matrix4x4.CreateFromQuaternion(
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, float.Pi)
+            ),
+            View = view,
+            Proj = projection,
+            //View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
+            /*Proj = Matrix4x4.CreatePerspectiveFieldOfView(
+                float.DegreesToRadians(fieldOfView),
+                (float)SwapChainContext.SwapChainExtent.Width
+                    / SwapChainContext.SwapChainExtent.Height,
                 0.1f,
                 500.0f
-            ),
+            ),*/
         };
         var proj = uniformBufferObject.Proj;
         proj.M22 *= -1; // Flip Y (DO NOT TURN OFFFFFF)
         uniformBufferObject.Proj = proj;
 
-        uniformBufferObject.AsBytes().CopyTo(_uniformBuffers[currentImage].MappedMemory);
+        uniformBufferObject.AsBytes().CopyTo(UniformBuffers[currentImage].MappedMemory);
         /*Console.WriteLine(
             $"Updating UBO frame {currentImage}, time: {time}, content: {_uniformBuffers[currentImage].MappedMemory.ToString()}]"
         );*/
@@ -495,13 +429,13 @@ public sealed class VulkanRenderer : IDisposable
 
     #region InstanceCreation
 
-    private unsafe Instance CreateInstance()
+    private unsafe Instance CreateInstance(Vk vk)
     {
         Logger.Metric?.WriteLine(
             $"Checking for {ValidationLayers.Length} validation layer(s) support: {string.Join(", ", ValidationLayers)}"
         );
 
-        if (EnableValidationLayers && !CheckValidationLayerSupport())
+        if (EnableValidationLayers && !CheckValidationLayerSupport(vk))
             throw new Exception("Validation layer(s) not supported");
 
         ApplicationInfo appInfo = new()
@@ -519,7 +453,7 @@ public sealed class VulkanRenderer : IDisposable
             $"Checking for {extensions.Length} extension(s) support: {string.Join(", ", extensions)}"
         );
 
-        if (!CheckExtensionSupport(extensions))
+        if (!CheckExtensionSupport(vk, extensions))
             throw new Exception("Required extension(s) not supported");
 
         InstanceCreateInfo createInfo = new()
@@ -539,7 +473,7 @@ public sealed class VulkanRenderer : IDisposable
             createInfo.PpEnabledLayerNames = (byte**)SilkMarshal.StringArrayToPtr(ValidationLayers);
         }
 
-        if (_vk.CreateInstance(&createInfo, null, out Instance instance) != Result.Success)
+        if (vk.CreateInstance(&createInfo, null, out Instance instance) != Result.Success)
             throw new Exception("Failed to create Vulkan instance");
 
         SilkMarshal.Free((nint)appInfo.PApplicationName);
@@ -552,13 +486,13 @@ public sealed class VulkanRenderer : IDisposable
         return instance;
     }
 
-    private unsafe bool CheckValidationLayerSupport()
+    private unsafe bool CheckValidationLayerSupport(Vk vk)
     {
         Span<uint> layerCount = stackalloc uint[1];
-        _vk.EnumerateInstanceLayerProperties(layerCount, Span<LayerProperties>.Empty);
+        vk.EnumerateInstanceLayerProperties(layerCount, Span<LayerProperties>.Empty);
 
         LayerProperties[] availableLayers = new LayerProperties[layerCount[0]];
-        _vk.EnumerateInstanceLayerProperties(layerCount, availableLayers.AsSpan());
+        vk.EnumerateInstanceLayerProperties(layerCount, availableLayers.AsSpan());
 
         foreach (string required in ValidationLayers)
         {
@@ -580,7 +514,9 @@ public sealed class VulkanRenderer : IDisposable
 
     private unsafe string[] GetRequiredInstanceExtensions()
     {
-        byte** extensions = _window.VkSurface!.GetRequiredExtensions(out uint extensionCount);
+        byte** extensions = _windowContext.Handle.VkSurface!.GetRequiredExtensions(
+            out uint extensionCount
+        );
 
         string[] requiredExtensions = new string[extensionCount];
         for (int i = 0; i < extensionCount; i++)
@@ -595,17 +531,17 @@ public sealed class VulkanRenderer : IDisposable
         return requiredExtensions;
     }
 
-    private unsafe bool CheckExtensionSupport(string[] required)
+    private unsafe bool CheckExtensionSupport(Vk vk, string[] required)
     {
         Span<uint> propertyCount = stackalloc uint[1];
-        _vk.EnumerateInstanceExtensionProperties(
+        vk.EnumerateInstanceExtensionProperties(
             ReadOnlySpan<byte>.Empty,
             propertyCount,
             Span<ExtensionProperties>.Empty
         );
 
         ExtensionProperties[] extensionProperties = new ExtensionProperties[propertyCount[0]];
-        _vk.EnumerateInstanceExtensionProperties(
+        vk.EnumerateInstanceExtensionProperties(
             ReadOnlySpan<byte>.Empty,
             propertyCount,
             extensionProperties.AsSpan()

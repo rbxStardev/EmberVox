@@ -1,12 +1,15 @@
 using EmberVox.Core.Logging;
+using EmberVox.Core.Types;
+using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal sealed class DeviceContext : IDisposable
+public sealed class DeviceContext : IResource
 {
+    public Vk Api { get; }
     public PhysicalDevice PhysicalDevice { get; }
     public Device LogicalDevice { get; }
     public QueueFamily GraphicsQueue { get; }
@@ -14,14 +17,13 @@ internal sealed class DeviceContext : IDisposable
 
     private static readonly string[] DeviceExtensions = [KhrSwapchain.ExtensionName];
 
-    private readonly Vk _vk;
     private readonly Instance _instance;
     private readonly SurfaceContext _surfaceContext;
     private readonly PhysicalDeviceMemoryProperties _memoryProperties;
 
     public DeviceContext(Vk vk, Instance instance, SurfaceContext surfaceContext)
     {
-        _vk = vk;
+        Api = vk;
         _instance = instance;
         _surfaceContext = surfaceContext;
 
@@ -35,20 +37,20 @@ internal sealed class DeviceContext : IDisposable
         GraphicsQueue = new QueueFamily()
         {
             Index = graphicsQueueIndex,
-            Queue = _vk.GetDeviceQueue(LogicalDevice, graphicsQueueIndex, 0),
+            Queue = Api.GetDeviceQueue(LogicalDevice, graphicsQueueIndex, 0),
         };
         PresentQueue = new QueueFamily()
         {
             Index = presentQueueIndex,
-            Queue = _vk.GetDeviceQueue(LogicalDevice, presentQueueIndex, 0),
+            Queue = Api.GetDeviceQueue(LogicalDevice, presentQueueIndex, 0),
         };
 
-        _memoryProperties = _vk.GetPhysicalDeviceMemoryProperties(PhysicalDevice);
+        _memoryProperties = Api.GetPhysicalDeviceMemoryProperties(PhysicalDevice);
     }
 
     public void Dispose()
     {
-        _vk.DestroyDevice(LogicalDevice, ReadOnlySpan<AllocationCallbacks>.Empty);
+        Api.DestroyDevice(LogicalDevice, ReadOnlySpan<AllocationCallbacks>.Empty);
         GC.SuppressFinalize(this);
     }
 
@@ -68,7 +70,7 @@ internal sealed class DeviceContext : IDisposable
 
         DeviceMemory imageMemory = default;
         if (
-            _vk.AllocateMemory(
+            Api.AllocateMemory(
                 LogicalDevice,
                 new ReadOnlySpan<MemoryAllocateInfo>(ref memoryAllocateInfo),
                 ReadOnlySpan<AllocationCallbacks>.Empty,
@@ -103,7 +105,7 @@ internal sealed class DeviceContext : IDisposable
         foreach (Format format in candidates)
         {
             FormatProperties properties = default;
-            _vk.GetPhysicalDeviceFormatProperties(
+            Api.GetPhysicalDeviceFormatProperties(
                 PhysicalDevice,
                 format,
                 new Span<FormatProperties>(ref properties)
@@ -127,7 +129,7 @@ internal sealed class DeviceContext : IDisposable
 
     private unsafe PhysicalDevice PickPhysicalDevice()
     {
-        IReadOnlyCollection<PhysicalDevice>? devices = _vk.GetPhysicalDevices(_instance);
+        IReadOnlyCollection<PhysicalDevice>? devices = Api.GetPhysicalDevices(_instance);
         if (devices.Count == 0)
             throw new Exception("Failed to find GPUs with Vulkan support!");
 
@@ -137,7 +139,7 @@ internal sealed class DeviceContext : IDisposable
             if (!IsPhysicalDeviceSuitable(device))
                 continue;
 
-            _vk.GetPhysicalDeviceProperties(device, out PhysicalDeviceProperties properties);
+            Api.GetPhysicalDeviceProperties(device, out PhysicalDeviceProperties properties);
             Logger.Info?.WriteLine("Found suitable physical device, listing properties...");
             Logger.Metric?.WriteLine(
                 $"-> Device Name: {SilkMarshal.PtrToString((nint)properties.DeviceName)}"
@@ -156,18 +158,18 @@ internal sealed class DeviceContext : IDisposable
     {
         Logger.Info?.WriteLine("Checking if physical device is suitable...");
 
-        bool hasVersion = _vk.GetPhysicalDeviceProperties(device).ApiVersion >= Vk.Version13;
+        bool hasVersion = Api.GetPhysicalDeviceProperties(device).ApiVersion >= Vk.Version13;
         Logger.Metric?.WriteLine("Physical device vulkan version is greater than Vk13 (Passed)");
 
         Span<uint> queueFamilyCount = stackalloc uint[1];
-        _vk.GetPhysicalDeviceQueueFamilyProperties(
+        Api.GetPhysicalDeviceQueueFamilyProperties(
             device,
             queueFamilyCount,
             Span<QueueFamilyProperties>.Empty
         );
 
         QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount[0]];
-        _vk.GetPhysicalDeviceQueueFamilyProperties(
+        Api.GetPhysicalDeviceQueueFamilyProperties(
             device,
             queueFamilyCount,
             queueFamilies.AsSpan()
@@ -179,7 +181,7 @@ internal sealed class DeviceContext : IDisposable
         Logger.Metric?.WriteLine("Physical device has graphics queue (Passed)");
 
         Span<uint> extensionCount = stackalloc uint[1];
-        _vk.EnumerateDeviceExtensionProperties(
+        Api.EnumerateDeviceExtensionProperties(
             device,
             ReadOnlySpan<byte>.Empty,
             extensionCount,
@@ -187,7 +189,7 @@ internal sealed class DeviceContext : IDisposable
         );
 
         ExtensionProperties[] extensions = new ExtensionProperties[extensionCount[0]];
-        _vk.EnumerateDeviceExtensionProperties(
+        Api.EnumerateDeviceExtensionProperties(
             device,
             ReadOnlySpan<byte>.Empty,
             extensionCount,
@@ -199,7 +201,7 @@ internal sealed class DeviceContext : IDisposable
         );
         Logger.Metric?.WriteLine("Physical device extensions are valid (Passed)");
 
-        PhysicalDeviceFeatures supportedFeatures = _vk.GetPhysicalDeviceFeatures(device);
+        PhysicalDeviceFeatures supportedFeatures = Api.GetPhysicalDeviceFeatures(device);
 
         return hasVersion
             && hasGraphicsQueue
@@ -210,14 +212,14 @@ internal sealed class DeviceContext : IDisposable
     private (uint graphics, uint present) FindPhysicalDeviceQueueFamilies(PhysicalDevice device)
     {
         Span<uint> queueFamilyCount = stackalloc uint[1];
-        _vk.GetPhysicalDeviceQueueFamilyProperties(
+        Api.GetPhysicalDeviceQueueFamilyProperties(
             device,
             queueFamilyCount,
             Span<QueueFamilyProperties>.Empty
         );
 
         QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount[0]];
-        _vk.GetPhysicalDeviceQueueFamilyProperties(
+        Api.GetPhysicalDeviceQueueFamilyProperties(
             device,
             queueFamilyCount,
             queueFamilies.AsSpan()
@@ -292,11 +294,11 @@ internal sealed class DeviceContext : IDisposable
 
         HashSet<uint> uniqueIndices = [graphicsIndex, presentIndex];
         uint[] indices = uniqueIndices.ToArray();
-        DeviceQueueCreateInfo[] queueCreateInfos = new DeviceQueueCreateInfo[indices.Length];
+        DeviceQueueCreateInfo[] queueCreateInfoArray = new DeviceQueueCreateInfo[indices.Length];
 
         for (int i = 0; i < indices.Length; i++)
         {
-            queueCreateInfos[i] = new DeviceQueueCreateInfo()
+            queueCreateInfoArray[i] = new DeviceQueueCreateInfo()
             {
                 SType = StructureType.DeviceQueueCreateInfo,
                 QueueFamilyIndex = indices[i],
@@ -305,18 +307,23 @@ internal sealed class DeviceContext : IDisposable
             };
         }
 
-        Device logicalDevice;
-        fixed (DeviceQueueCreateInfo* pQueueCreateInfos = queueCreateInfos)
-        {
-            deviceCreateInfo.QueueCreateInfoCount = (uint)queueCreateInfos.Length;
-            deviceCreateInfo.PQueueCreateInfos = pQueueCreateInfos;
+        //fixed (DeviceQueueCreateInfo* pQueueCreateInfos = queueCreateInfos)
+        //{
+        using ManagedPointer<DeviceQueueCreateInfo> queueCreateInfo = new(
+            queueCreateInfoArray.Length
+        );
+        queueCreateInfoArray.CopyTo(queueCreateInfo.Span);
 
-            if (
-                _vk.CreateDevice(PhysicalDevice, &deviceCreateInfo, null, out logicalDevice)
-                != Result.Success
-            )
-                throw new Exception("Failed to create logical device");
-        }
+        deviceCreateInfo.QueueCreateInfoCount = (uint)queueCreateInfo.Length;
+        deviceCreateInfo.PQueueCreateInfos = queueCreateInfo.Pointer;
+
+        Device logicalDevice;
+        if (
+            Api.CreateDevice(PhysicalDevice, &deviceCreateInfo, null, out logicalDevice)
+            != Result.Success
+        )
+            throw new Exception("Failed to create logical device");
+        //}
 
         SilkMarshal.Free((nint)deviceCreateInfo.PpEnabledExtensionNames);
 

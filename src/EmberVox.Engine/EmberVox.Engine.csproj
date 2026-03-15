@@ -6,5 +6,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\EmberVox.Core\EmberVox.Core.csproj" />
+    <ProjectReference Include="..\EmberVox.Rendering\EmberVox.Rendering.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Types\" />
   </ItemGroup>
 </Project>

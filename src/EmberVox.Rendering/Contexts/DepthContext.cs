@@ -1,30 +1,29 @@
+using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal class DepthContext : IDisposable
+public class DepthContext : IResource
 {
     public Image DepthImage { get; }
     public ImageView DepthImageView { get; }
     public Format DepthImageFormat { get; }
 
-    private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
     private readonly MemoryRequirements _memoryRequirements;
     private readonly DeviceMemory _depthImageMemory;
 
-    public DepthContext(Vk vk, DeviceContext deviceContext, SwapChainContext swapChainContext)
+    public DepthContext(DeviceContext deviceContext, SwapChainContext swapChainContext)
     {
-        _vk = vk;
         _deviceContext = deviceContext;
         _swapChainContext = swapChainContext;
 
         DepthImageFormat = FindDepthFormat();
 
         DepthImage = ImageUtils.CreateImage(
-            _vk,
+            _deviceContext.Api,
             _deviceContext.LogicalDevice,
             _swapChainContext.SwapChainExtent.Width,
             _swapChainContext.SwapChainExtent.Height,
@@ -34,7 +33,7 @@ internal class DepthContext : IDisposable
             ImageUsageFlags.DepthStencilAttachmentBit
         );
 
-        _memoryRequirements = _vk.GetImageMemoryRequirements(
+        _memoryRequirements = _deviceContext.Api.GetImageMemoryRequirements(
             _deviceContext.LogicalDevice,
             DepthImage
         );
@@ -43,10 +42,15 @@ internal class DepthContext : IDisposable
             MemoryPropertyFlags.DeviceLocalBit
         );
 
-        _vk.BindImageMemory(_deviceContext.LogicalDevice, DepthImage, _depthImageMemory, 0);
+        _deviceContext.Api.BindImageMemory(
+            _deviceContext.LogicalDevice,
+            DepthImage,
+            _depthImageMemory,
+            0
+        );
 
         DepthImageView = ImageUtils.CreateImageView(
-            _vk,
+            _deviceContext.Api,
             _deviceContext.LogicalDevice,
             DepthImage,
             1,
@@ -57,17 +61,17 @@ internal class DepthContext : IDisposable
 
     public void Dispose()
     {
-        _vk.DestroyImageView(
+        _deviceContext.Api.DestroyImageView(
             _deviceContext.LogicalDevice,
             DepthImageView,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
-        _vk.FreeMemory(
+        _deviceContext.Api.FreeMemory(
             _deviceContext.LogicalDevice,
             _depthImageMemory,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
-        _vk.DestroyImage(
+        _deviceContext.Api.DestroyImage(
             _deviceContext.LogicalDevice,
             DepthImage,
             ReadOnlySpan<AllocationCallbacks>.Empty

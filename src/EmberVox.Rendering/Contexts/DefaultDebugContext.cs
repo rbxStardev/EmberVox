@@ -1,24 +1,23 @@
 using System.Runtime.InteropServices;
 using EmberVox.Core.Logging;
+using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal sealed class DefaultDebugContext : IDisposable
+internal sealed class DefaultDebugContext : IResource
 {
     public ExtDebugUtils DebugUtilsExtension { get; }
     public DebugUtilsMessengerEXT DebugMessenger { get; }
 
-    private readonly Vk _vk;
     private readonly Instance _instance;
 
     public DefaultDebugContext(Vk vk, Instance instance)
     {
-        _vk = vk;
         _instance = instance;
 
-        if (!_vk.TryGetInstanceExtension(_instance, out ExtDebugUtils debugUtilsExtension))
+        if (!vk.TryGetInstanceExtension(_instance, out ExtDebugUtils debugUtilsExtension))
             throw new Exception("Failed to get ExtDebugUtils extension");
 
         DebugUtilsExtension = debugUtilsExtension;

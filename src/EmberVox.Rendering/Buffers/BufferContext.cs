@@ -1,16 +1,17 @@
 using EmberVox.Core.Logging;
+using EmberVox.Rendering.Contexts;
+using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
 
-namespace EmberVox.Rendering.Contexts;
+namespace EmberVox.Rendering.Buffers;
 
-internal sealed class BufferContext : IDisposable
+public sealed class BufferContext : IResource
 {
     public Buffer Buffer { get; }
     public unsafe Span<byte> MappedMemory =>
         _mappedPointer != null ? new Span<byte>(_mappedPointer, (int)_size) : [];
 
-    private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly ulong _size;
     private readonly DeviceMemory _deviceMemory;
@@ -18,7 +19,6 @@ internal sealed class BufferContext : IDisposable
     private readonly unsafe void* _mappedPointer;
 
     public unsafe BufferContext(
-        Vk vk,
         DeviceContext deviceContext,
         ulong size,
         BufferUsageFlags bufferUsage,
@@ -26,20 +26,22 @@ internal sealed class BufferContext : IDisposable
             MemoryPropertyFlags.HostCoherentBit | MemoryPropertyFlags.HostVisibleBit
     )
     {
-        _vk = vk;
         _deviceContext = deviceContext;
         _size = size;
 
         Buffer = CreateBuffer(bufferUsage);
 
-        _memoryRequirements = _vk.GetBufferMemoryRequirements(_deviceContext.LogicalDevice, Buffer);
+        _memoryRequirements = _deviceContext.Api.GetBufferMemoryRequirements(
+            _deviceContext.LogicalDevice,
+            Buffer
+        );
         _deviceMemory = AllocateMemory(memoryPropertyFlags);
 
-        _vk.BindBufferMemory(_deviceContext.LogicalDevice, Buffer, _deviceMemory, 0);
+        _deviceContext.Api.BindBufferMemory(_deviceContext.LogicalDevice, Buffer, _deviceMemory, 0);
 
         if (memoryPropertyFlags.HasFlag(MemoryPropertyFlags.HostVisibleBit))
         {
-            _vk.MapMemory(
+            _deviceContext.Api.MapMemory(
                 _deviceContext.LogicalDevice,
                 _deviceMemory,
                 0,
@@ -47,7 +49,7 @@ internal sealed class BufferContext : IDisposable
                 MemoryMapFlags.None,
                 ref _mappedPointer
             );
-            
+
             Logger.Metric?.WriteLine("-> Buffer created is visible to host");
         }
         Console.WriteLine();
@@ -56,14 +58,14 @@ internal sealed class BufferContext : IDisposable
     public unsafe void Dispose()
     {
         if (_mappedPointer != null)
-            _vk.UnmapMemory(_deviceContext.LogicalDevice, _deviceMemory);
+            _deviceContext.Api.UnmapMemory(_deviceContext.LogicalDevice, _deviceMemory);
 
-        _vk.FreeMemory(
+        _deviceContext.Api.FreeMemory(
             _deviceContext.LogicalDevice,
             _deviceMemory,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
-        _vk.DestroyBuffer(
+        _deviceContext.Api.DestroyBuffer(
             _deviceContext.LogicalDevice,
             Buffer,
             ReadOnlySpan<AllocationCallbacks>.Empty
@@ -82,7 +84,7 @@ internal sealed class BufferContext : IDisposable
 
         Buffer buffer = default;
         if (
-            _vk.CreateBuffer(
+            _deviceContext.Api.CreateBuffer(
                 _deviceContext.LogicalDevice,
                 new ReadOnlySpan<BufferCreateInfo>(ref bufferInfo),
                 ReadOnlySpan<AllocationCallbacks>.Empty,
@@ -90,7 +92,7 @@ internal sealed class BufferContext : IDisposable
             ) != Result.Success
         )
             throw new Exception("Failed to create buffer");
-        
+
         Logger.Metric?.WriteLine("Created buffer, listing properties...");
         Logger.Metric?.WriteLine($"-> Buffer size: {_size} bytes");
         Logger.Metric?.WriteLine($"-> Buffer usage: {usage}");
@@ -114,7 +116,7 @@ internal sealed class BufferContext : IDisposable
 
         DeviceMemory deviceMemory = default;
         if (
-            _vk.AllocateMemory(
+            _deviceContext.Api.AllocateMemory(
                 _deviceContext.LogicalDevice,
                 new ReadOnlySpan<MemoryAllocateInfo>(ref memoryAllocateInfo),
                 ReadOnlySpan<AllocationCallbacks>.Empty,

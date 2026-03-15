@@ -1,42 +1,49 @@
 using System.Runtime.CompilerServices;
+using EmberVox.Core.Types;
+using EmberVox.Rendering.Buffers;
+using EmberVox.Rendering.GraphicsPipeline;
+using EmberVox.Rendering.RenderingManagement;
+using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Types;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal sealed class DescriptorContext : IDisposable
+public sealed class DescriptorContext : IResource
 {
     public DescriptorSet this[int index] => _descriptorSets[index];
 
-    private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly GraphicsPipelineContext _graphicsPipelineContext;
     private readonly DescriptorPool _descriptorPool;
-    private readonly List<DescriptorSet> _descriptorSets;
-    private readonly Texture2D _texture2D;
+    private DescriptorSet[] _descriptorSets = [];
+    private readonly IRenderable _renderTarget;
 
     public DescriptorContext(
-        Vk vk,
         DeviceContext deviceContext,
         GraphicsPipelineContext graphicsPipelineContext,
         uint descriptorCount,
         List<BufferContext> uniformBuffers,
-        Texture2D texture2D
+        IRenderable renderTarget
     )
     {
-        _vk = vk;
         _deviceContext = deviceContext;
         _graphicsPipelineContext = graphicsPipelineContext;
-        _texture2D = texture2D;
+        _renderTarget = renderTarget;
 
         _descriptorPool = CreateDescriptorPool(descriptorCount);
-        _descriptorSets = [];
         CreateDescriptorSets(descriptorCount, uniformBuffers);
     }
 
     public void Dispose()
     {
-        _vk.DestroyDescriptorPool(
+        _deviceContext.Api.FreeDescriptorSets(
+            _deviceContext.LogicalDevice,
+            _descriptorPool,
+            new ReadOnlySpan<DescriptorSet>(_descriptorSets)
+        );
+
+        _deviceContext.Api.DestroyDescriptorPool(
             _deviceContext.LogicalDevice,
             _descriptorPool,
             ReadOnlySpan<AllocationCallbacks>.Empty
@@ -47,32 +54,36 @@ internal sealed class DescriptorContext : IDisposable
 
     private unsafe DescriptorPool CreateDescriptorPool(uint descriptorCount)
     {
-        DescriptorPoolSize[] poolSize =
+        DescriptorPoolSize[] poolSizeArray =
         [
             new(DescriptorType.UniformBuffer, descriptorCount),
             new(DescriptorType.CombinedImageSampler, descriptorCount),
         ];
-        fixed (DescriptorPoolSize* pPoolSize = poolSize)
+
+        using ManagedPointer<DescriptorPoolSize> poolSize = new(poolSizeArray.Length);
+        poolSizeArray.CopyTo(poolSize.Span);
+
+        //fixed (DescriptorPoolSize* pPoolSize = poolSize)
+        //{
+        DescriptorPoolCreateInfo poolInfo = new()
         {
-            DescriptorPoolCreateInfo poolInfo = new()
-            {
-                SType = StructureType.DescriptorPoolCreateInfo,
-                Flags = DescriptorPoolCreateFlags.FreeDescriptorSetBit,
-                MaxSets = descriptorCount,
-                PoolSizeCount = (uint)poolSize.Length,
-                PPoolSizes = pPoolSize,
-            };
+            SType = StructureType.DescriptorPoolCreateInfo,
+            Flags = DescriptorPoolCreateFlags.FreeDescriptorSetBit,
+            MaxSets = descriptorCount,
+            PoolSizeCount = (uint)poolSize.Length,
+            PPoolSizes = poolSize.Pointer,
+        };
 
-            DescriptorPool descriptorPool = default;
-            _vk.CreateDescriptorPool(
-                _deviceContext.LogicalDevice,
-                new ReadOnlySpan<DescriptorPoolCreateInfo>(ref poolInfo),
-                ReadOnlySpan<AllocationCallbacks>.Empty,
-                new Span<DescriptorPool>(ref descriptorPool)
-            );
+        DescriptorPool descriptorPool = default;
+        _deviceContext.Api.CreateDescriptorPool(
+            _deviceContext.LogicalDevice,
+            new ReadOnlySpan<DescriptorPoolCreateInfo>(ref poolInfo),
+            ReadOnlySpan<AllocationCallbacks>.Empty,
+            new Span<DescriptorPool>(ref descriptorPool)
+        );
 
-            return descriptorPool;
-        }
+        return descriptorPool;
+        //}
     }
 
     private unsafe void CreateDescriptorSets(
@@ -80,75 +91,78 @@ internal sealed class DescriptorContext : IDisposable
         List<BufferContext> uniformBuffers
     )
     {
-        DescriptorSetLayout[] layouts = new DescriptorSetLayout[descriptorCount];
-        Array.Fill(layouts, _graphicsPipelineContext.DescriptorSetLayout);
+        DescriptorSetLayout[] layoutArray = new DescriptorSetLayout[descriptorCount];
+        Array.Fill(layoutArray, _graphicsPipelineContext.DescriptorSetLayout);
 
-        fixed (DescriptorSetLayout* pLayouts = layouts)
+        using ManagedPointer<DescriptorSetLayout> layout = new(layoutArray.Length);
+        layoutArray.CopyTo(layout.Span);
+
+        //fixed (DescriptorSetLayout* pLayouts = layouts)
+        //{
+        DescriptorSetAllocateInfo allocateInfo = new()
         {
-            DescriptorSetAllocateInfo allocateInfo = new()
+            SType = StructureType.DescriptorSetAllocateInfo,
+            DescriptorPool = _descriptorPool,
+            DescriptorSetCount = (uint)layout.Length,
+            PSetLayouts = layout.Pointer,
+        };
+
+        _descriptorSets = new DescriptorSet[descriptorCount];
+
+        Span<DescriptorSet> descriptorSets = new DescriptorSet[descriptorCount];
+
+        _deviceContext.Api.AllocateDescriptorSets(
+            _deviceContext.LogicalDevice,
+            new ReadOnlySpan<DescriptorSetAllocateInfo>(ref allocateInfo),
+            descriptorSets
+        );
+
+        descriptorSets.CopyTo(new Span<DescriptorSet>(_descriptorSets));
+
+        for (int i = 0; i < descriptorCount; i++)
+        {
+            DescriptorBufferInfo bufferInfo = new()
             {
-                SType = StructureType.DescriptorSetAllocateInfo,
-                DescriptorPool = _descriptorPool,
-                DescriptorSetCount = (uint)layouts.Length,
-                PSetLayouts = pLayouts,
+                Buffer = uniformBuffers[i].Buffer,
+                Offset = 0,
+                Range = (ulong)Unsafe.SizeOf<UniformBufferObject>(),
             };
-
-            _descriptorSets.Clear();
-
-            Span<DescriptorSet> descriptorSets = new DescriptorSet[descriptorCount];
-
-            _vk.AllocateDescriptorSets(
-                _deviceContext.LogicalDevice,
-                new ReadOnlySpan<DescriptorSetAllocateInfo>(ref allocateInfo),
-                descriptorSets
-            );
-
-            _descriptorSets.AddRange(descriptorSets);
-
-            for (int i = 0; i < descriptorCount; i++)
+            DescriptorImageInfo imageInfo = new()
             {
-                DescriptorBufferInfo bufferInfo = new()
+                Sampler = _renderTarget.Sampler,
+                ImageView = _renderTarget.ImageView,
+                ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
+            };
+            WriteDescriptorSet[] descriptorWrites =
+            [
+                new()
                 {
-                    Buffer = uniformBuffers[i].Buffer,
-                    Offset = 0,
-                    Range = (ulong)Unsafe.SizeOf<UniformBufferObject>(),
-                };
-                DescriptorImageInfo imageInfo = new()
+                    SType = StructureType.WriteDescriptorSet,
+                    DstSet = _descriptorSets[i],
+                    DstBinding = 0,
+                    DstArrayElement = 0,
+                    DescriptorCount = 1,
+                    DescriptorType = DescriptorType.UniformBuffer,
+                    PBufferInfo = &bufferInfo,
+                },
+                new()
                 {
-                    Sampler = _texture2D.Sampler,
-                    ImageView = _texture2D.ImageView,
-                    ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
-                };
-                WriteDescriptorSet[] descriptorWrites =
-                [
-                    new()
-                    {
-                        SType = StructureType.WriteDescriptorSet,
-                        DstSet = _descriptorSets[i],
-                        DstBinding = 0,
-                        DstArrayElement = 0,
-                        DescriptorCount = 1,
-                        DescriptorType = DescriptorType.UniformBuffer,
-                        PBufferInfo = &bufferInfo,
-                    },
-                    new()
-                    {
-                        SType = StructureType.WriteDescriptorSet,
-                        DstSet = _descriptorSets[i],
-                        DstBinding = 1,
-                        DstArrayElement = 0,
-                        DescriptorCount = 1,
-                        DescriptorType = DescriptorType.CombinedImageSampler,
-                        PImageInfo = &imageInfo,
-                    },
-                ];
+                    SType = StructureType.WriteDescriptorSet,
+                    DstSet = _descriptorSets[i],
+                    DstBinding = 1,
+                    DstArrayElement = 0,
+                    DescriptorCount = 1,
+                    DescriptorType = DescriptorType.CombinedImageSampler,
+                    PImageInfo = &imageInfo,
+                },
+            ];
 
-                _vk.UpdateDescriptorSets(
-                    _deviceContext.LogicalDevice,
-                    new ReadOnlySpan<WriteDescriptorSet>(descriptorWrites),
-                    ReadOnlySpan<CopyDescriptorSet>.Empty
-                );
-            }
+            _deviceContext.Api.UpdateDescriptorSets(
+                _deviceContext.LogicalDevice,
+                new ReadOnlySpan<WriteDescriptorSet>(descriptorWrites),
+                ReadOnlySpan<CopyDescriptorSet>.Empty
+            );
         }
+        //}
     }
 }

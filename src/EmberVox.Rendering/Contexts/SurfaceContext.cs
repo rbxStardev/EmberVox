@@ -1,25 +1,24 @@
+using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal sealed class SurfaceContext : IDisposable
+public sealed class SurfaceContext : IResource
 {
     public KhrSurface KhrSurfaceExtension { get; }
     public SurfaceKHR SurfaceKhr { get; }
 
-    private readonly Vk _vk;
     private readonly Instance _instance;
     private readonly IWindow _window;
 
     public SurfaceContext(Vk vk, Instance instance, IWindow window)
     {
-        _vk = vk;
         _instance = instance;
         _window = window;
 
-        if (!_vk.TryGetInstanceExtension(_instance, out KhrSurface khrSurfaceExtension))
+        if (!vk.TryGetInstanceExtension(_instance, out KhrSurface khrSurfaceExtension))
             throw new Exception("Failed to get KhrSurface extension");
 
         KhrSurfaceExtension = khrSurfaceExtension;

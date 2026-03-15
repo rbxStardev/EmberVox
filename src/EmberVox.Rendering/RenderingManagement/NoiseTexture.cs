@@ -1,16 +1,15 @@
+using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
-using StbImageSharp;
 
-namespace EmberVox.Rendering;
+namespace EmberVox.Rendering.RenderingManagement;
 
-internal class Texture2D : IDisposable
+public class NoiseTexture : IRenderable
 {
     public Sampler Sampler { get; }
     public ImageView ImageView { get; }
 
-    private readonly Vk _vk;
     private readonly DeviceContext _deviceContext;
     private readonly CommandContext _commandContext;
     private readonly uint _mipLevels;
@@ -18,45 +17,61 @@ internal class Texture2D : IDisposable
     private readonly DeviceMemory _textureImageMemory;
     private readonly MemoryRequirements _memoryRequirements;
 
-    public Texture2D(
-        Vk vk,
+    public NoiseTexture(
         DeviceContext deviceContext,
         CommandContext commandContext,
-        string texturePath
+        int width,
+        int height
     )
     {
-        _vk = vk;
         _deviceContext = deviceContext;
         _commandContext = commandContext;
 
-        StbImage.stbi_set_flip_vertically_on_load(1);
-        ImageResult imageResult = ImageResult.FromStream(
-            File.OpenRead(texturePath),
-            ColorComponents.RedGreenBlueAlpha
-        );
-        _mipLevels = (uint)Math.Floor(Math.Log2(Math.Max(imageResult.Width, imageResult.Height))) + 1;
-        uint imageSize = (uint)(imageResult.Width * imageResult.Height * 4);
+        _mipLevels = (uint)Math.Floor(Math.Log2(Math.Max(width, height))) + 1;
+        uint imageSize = (uint)(width * height * 4);
 
         BufferContext stagingBuffer = new BufferContext(
-            _vk,
             _deviceContext,
             imageSize,
             BufferUsageFlags.TransferSrcBit
         );
-        imageResult.Data.CopyTo(stagingBuffer.MappedMemory);
+
+        FastNoiseLite noise = new FastNoiseLite();
+        noise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+        noise.SetFrequency(0.05f);
+
+        byte[] noiseData = new byte[width * height * 4];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float noiseValue = noise.GetNoise(x, y);
+                byte mappedValue = (byte)((noiseValue + 1f) / 2f * 255f);
+
+                int i = (x + y * width) * 4;
+                noiseData[i] = mappedValue;
+                noiseData[i + 1] = mappedValue;
+                noiseData[i + 2] = mappedValue;
+                noiseData[i + 3] = 255;
+            }
+        }
+
+        noiseData.CopyTo(stagingBuffer.MappedMemory);
 
         _textureImage = ImageUtils.CreateImage(
-            _vk,
+            _deviceContext.Api,
             _deviceContext.LogicalDevice,
-            (uint)imageResult.Width,
-            (uint)imageResult.Height,
+            (uint)width,
+            (uint)height,
             _mipLevels,
             Format.R8G8B8A8Srgb,
             ImageTiling.Optimal,
-            ImageUsageFlags.TransferSrcBit | ImageUsageFlags.TransferDstBit | ImageUsageFlags.SampledBit
+            ImageUsageFlags.TransferSrcBit
+                | ImageUsageFlags.TransferDstBit
+                | ImageUsageFlags.SampledBit
         );
 
-        _memoryRequirements = _vk.GetImageMemoryRequirements(
+        _memoryRequirements = _deviceContext.Api.GetImageMemoryRequirements(
             _deviceContext.LogicalDevice,
             _textureImage
         );
@@ -65,19 +80,11 @@ internal class Texture2D : IDisposable
             MemoryPropertyFlags.DeviceLocalBit
         );
 
-        _vk.BindImageMemory(_deviceContext.LogicalDevice, _textureImage, _textureImageMemory, 0);
-
-        _commandContext.TransitionImageLayout(
+        _deviceContext.Api.BindImageMemory(
+            _deviceContext.LogicalDevice,
             _textureImage,
-            _mipLevels,
-            ImageLayout.Undefined,
-            ImageLayout.TransferDstOptimal
-        );
-        _commandContext.CopyBufferToImage(
-            stagingBuffer,
-            _textureImage,
-            (uint)imageResult.Width,
-            (uint)imageResult.Height
+            _textureImageMemory,
+            0
         );
 
         _commandContext.TransitionImageLayout(
@@ -86,12 +93,21 @@ internal class Texture2D : IDisposable
             ImageLayout.Undefined,
             ImageLayout.TransferDstOptimal
         );
-        _commandContext.CopyBufferToImage(stagingBuffer, _textureImage, (uint)imageResult.Width, (uint)imageResult.Height);
-        
-        ImageUtils.GenerateMipmaps(_vk, _commandContext, _deviceContext, _textureImage, Format.R8G8B8A8Srgb, imageResult.Width, imageResult.Height, _mipLevels);
+        _commandContext.CopyBufferToImage(stagingBuffer, _textureImage, (uint)width, (uint)height);
+
+        ImageUtils.GenerateMipmaps(
+            _deviceContext.Api,
+            _commandContext,
+            _deviceContext,
+            _textureImage,
+            Format.R8G8B8A8Srgb,
+            width,
+            height,
+            _mipLevels
+        );
 
         ImageView = ImageUtils.CreateImageView(
-            _vk,
+            _deviceContext.Api,
             _deviceContext.LogicalDevice,
             _textureImage,
             _mipLevels,
@@ -99,28 +115,28 @@ internal class Texture2D : IDisposable
             ImageAspectFlags.ColorBit
         );
         Sampler = CreateTextureSampler();
-        
+
         stagingBuffer.Dispose();
     }
 
     public void Dispose()
     {
-        _vk.DestroySampler(
+        _deviceContext.Api.DestroySampler(
             _deviceContext.LogicalDevice,
             Sampler,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
-        _vk.DestroyImageView(
+        _deviceContext.Api.DestroyImageView(
             _deviceContext.LogicalDevice,
             ImageView,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
-        _vk.FreeMemory(
+        _deviceContext.Api.FreeMemory(
             _deviceContext.LogicalDevice,
             _textureImageMemory,
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
-        _vk.DestroyImage(
+        _deviceContext.Api.DestroyImage(
             _deviceContext.LogicalDevice,
             _textureImage,
             ReadOnlySpan<AllocationCallbacks>.Empty
@@ -131,7 +147,7 @@ internal class Texture2D : IDisposable
 
     private Sampler CreateTextureSampler()
     {
-        PhysicalDeviceProperties properties = _vk.GetPhysicalDeviceProperties(
+        PhysicalDeviceProperties properties = _deviceContext.Api.GetPhysicalDeviceProperties(
             _deviceContext.PhysicalDevice
         );
         SamplerCreateInfo samplerInfo = new()
@@ -155,7 +171,7 @@ internal class Texture2D : IDisposable
         };
 
         Sampler sampler = default;
-        _vk.CreateSampler(
+        _deviceContext.Api.CreateSampler(
             _deviceContext.LogicalDevice,
             new ReadOnlySpan<SamplerCreateInfo>(ref samplerInfo),
             ReadOnlySpan<AllocationCallbacks>.Empty,
