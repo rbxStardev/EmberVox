@@ -2,7 +2,6 @@ using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
-using StbImageSharp;
 
 namespace EmberVox.Rendering.RenderingManagement;
 
@@ -18,32 +17,31 @@ public class Texture2D : IRenderable
     private readonly DeviceMemory _textureImageMemory;
     private readonly MemoryRequirements _memoryRequirements;
 
-    public Texture2D(DeviceContext deviceContext, CommandContext commandContext, string texturePath)
+    public Texture2D(
+        DeviceContext deviceContext,
+        CommandContext commandContext,
+        TextureData textureData
+    )
     {
         _deviceContext = deviceContext;
         _commandContext = commandContext;
 
-        StbImage.stbi_set_flip_vertically_on_load(1);
-        ImageResult imageResult = ImageResult.FromStream(
-            File.OpenRead(texturePath),
-            ColorComponents.RedGreenBlueAlpha
-        );
+        uint textureStride = textureData.Width * textureData.Height * 4;
         _mipLevels =
-            (uint)Math.Floor(Math.Log2(Math.Max(imageResult.Width, imageResult.Height))) + 1;
-        uint imageSize = (uint)(imageResult.Width * imageResult.Height * 4);
+            (uint)Math.Floor(Math.Log2(Math.Max(textureData.Width, textureData.Height))) + 1;
 
         BufferContext stagingBuffer = new BufferContext(
             _deviceContext,
-            imageSize,
+            textureStride,
             BufferUsageFlags.TransferSrcBit
         );
-        imageResult.Data.CopyTo(stagingBuffer.MappedMemory);
+        textureData.PixelData.CopyTo(stagingBuffer.MappedMemory);
 
         _textureImage = ImageUtils.CreateImage(
             _deviceContext.Api,
             _deviceContext.LogicalDevice,
-            (uint)imageResult.Width,
-            (uint)imageResult.Height,
+            textureData.Width,
+            textureData.Height,
             _mipLevels,
             Format.R8G8B8A8Srgb,
             ImageTiling.Optimal,
@@ -77,8 +75,8 @@ public class Texture2D : IRenderable
         _commandContext.CopyBufferToImage(
             stagingBuffer,
             _textureImage,
-            (uint)imageResult.Width,
-            (uint)imageResult.Height
+            (uint)textureData.Width,
+            (uint)textureData.Height
         );
 
         ImageUtils.GenerateMipmaps(
@@ -87,8 +85,8 @@ public class Texture2D : IRenderable
             _deviceContext,
             _textureImage,
             Format.R8G8B8A8Srgb,
-            imageResult.Width,
-            imageResult.Height,
+            textureData.Width,
+            textureData.Height,
             _mipLevels
         );
 

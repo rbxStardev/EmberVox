@@ -78,9 +78,9 @@ public static class VoxelDataUtils
     };
 
     public static Vertex[] GetVoxelFaceVertices(
-        VoxelType type,
         VoxelFace face,
         Vector3 position,
+        VoxelType type = VoxelType.Air,
         bool includeUv = false
     )
     {
