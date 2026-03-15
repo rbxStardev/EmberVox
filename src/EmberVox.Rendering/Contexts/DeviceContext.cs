@@ -87,6 +87,7 @@ public sealed class DeviceContext : IResource
         for (int i = 0; i < _memoryProperties.MemoryTypeCount; i++)
         {
             if (
+                // TODO - Make it so i dont have to cast uint twice, somehow
                 (typeFilter & (uint)(1 << i)) != 0
                 && (_memoryProperties.MemoryTypes[i].PropertyFlags & properties) == properties
             )
@@ -115,13 +116,17 @@ public sealed class DeviceContext : IResource
                 tiling == ImageTiling.Linear
                 && (properties.LinearTilingFeatures & formatFeatures) == formatFeatures
             )
+            {
                 return format;
+            }
 
             if (
                 tiling == ImageTiling.Optimal
                 && (properties.OptimalTilingFeatures & formatFeatures) == formatFeatures
             )
+            {
                 return format;
+            }
         }
 
         throw new Exception("Failed to find supported format!");
@@ -175,8 +180,8 @@ public sealed class DeviceContext : IResource
             queueFamilies.AsSpan()
         );
 
-        bool hasGraphicsQueue = queueFamilies.Any(q =>
-            (q.QueueFlags & QueueFlags.GraphicsBit) != 0
+        bool hasGraphicsQueue = queueFamilies.Any(queue =>
+            (queue.QueueFlags & QueueFlags.GraphicsBit) != 0
         );
         Logger.Metric?.WriteLine("Physical device has graphics queue (Passed)");
 
@@ -197,7 +202,9 @@ public sealed class DeviceContext : IResource
         );
 
         bool hasExtensions = DeviceExtensions.All(name =>
-            extensions.Any(e => SilkMarshal.PtrToString((nint)e.ExtensionName) == name)
+            extensions.Any(extension =>
+                SilkMarshal.PtrToString((nint)extension.ExtensionName) == name
+            )
         );
         Logger.Metric?.WriteLine("Physical device extensions are valid (Passed)");
 

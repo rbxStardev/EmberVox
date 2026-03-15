@@ -39,7 +39,10 @@ public sealed class BufferContext : IResource
 
         _deviceContext.Api.BindBufferMemory(_deviceContext.LogicalDevice, Buffer, _deviceMemory, 0);
 
-        if (memoryPropertyFlags.HasFlag(MemoryPropertyFlags.HostVisibleBit))
+        if (
+            (memoryPropertyFlags & MemoryPropertyFlags.HostVisibleBit)
+            == MemoryPropertyFlags.HostVisibleBit
+        )
         {
             _deviceContext.Api.MapMemory(
                 _deviceContext.LogicalDevice,

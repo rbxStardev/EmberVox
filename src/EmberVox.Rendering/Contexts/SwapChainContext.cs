@@ -1,5 +1,6 @@
 using EmberVox.Core.Logging;
 using EmberVox.Rendering.ResourceManagement;
+using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
@@ -291,15 +292,14 @@ public sealed class SwapChainContext : IResource
         {
             createInfo.Image = SwapChainImages[i];
 
-            if (
-                _deviceContext.Api.CreateImageView(
-                    _deviceContext.LogicalDevice,
-                    &createInfo,
-                    null,
-                    out imageViews[i]
-                ) != Result.Success
-            )
-                throw new Exception("Failed to create ImageView for SwapChain");
+            imageViews[i] = ImageUtils.CreateImageView(
+                _deviceContext.Api,
+                _deviceContext.LogicalDevice,
+                SwapChainImages[i],
+                1,
+                SwapChainImageFormat,
+                ImageAspectFlags.ColorBit
+            );
         }
 
         return imageViews;

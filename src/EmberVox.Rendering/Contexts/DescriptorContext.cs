@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using EmberVox.Core.Types;
 using EmberVox.Rendering.Buffers;
-using EmberVox.Rendering.GraphicsPipeline;
 using EmberVox.Rendering.RenderingManagement;
 using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Types;
@@ -14,21 +13,21 @@ public sealed class DescriptorContext : IResource
     public DescriptorSet this[int index] => _descriptorSets[index];
 
     private readonly DeviceContext _deviceContext;
-    private readonly GraphicsPipelineContext _graphicsPipelineContext;
+    private readonly DescriptorSetLayout _descriptorSetLayout;
     private readonly DescriptorPool _descriptorPool;
     private DescriptorSet[] _descriptorSets = [];
     private readonly IRenderable _renderTarget;
 
     public DescriptorContext(
         DeviceContext deviceContext,
-        GraphicsPipelineContext graphicsPipelineContext,
+        DescriptorSetLayout descriptorSetLayout,
         uint descriptorCount,
         List<BufferContext> uniformBuffers,
         IRenderable renderTarget
     )
     {
         _deviceContext = deviceContext;
-        _graphicsPipelineContext = graphicsPipelineContext;
+        _descriptorSetLayout = descriptorSetLayout;
         _renderTarget = renderTarget;
 
         _descriptorPool = CreateDescriptorPool(descriptorCount);
@@ -63,8 +62,6 @@ public sealed class DescriptorContext : IResource
         using ManagedPointer<DescriptorPoolSize> poolSize = new(poolSizeArray.Length);
         poolSizeArray.CopyTo(poolSize.Span);
 
-        //fixed (DescriptorPoolSize* pPoolSize = poolSize)
-        //{
         DescriptorPoolCreateInfo poolInfo = new()
         {
             SType = StructureType.DescriptorPoolCreateInfo,
@@ -83,7 +80,6 @@ public sealed class DescriptorContext : IResource
         );
 
         return descriptorPool;
-        //}
     }
 
     private unsafe void CreateDescriptorSets(
@@ -92,13 +88,11 @@ public sealed class DescriptorContext : IResource
     )
     {
         DescriptorSetLayout[] layoutArray = new DescriptorSetLayout[descriptorCount];
-        Array.Fill(layoutArray, _graphicsPipelineContext.DescriptorSetLayout);
+        Array.Fill(layoutArray, _descriptorSetLayout);
 
         using ManagedPointer<DescriptorSetLayout> layout = new(layoutArray.Length);
         layoutArray.CopyTo(layout.Span);
 
-        //fixed (DescriptorSetLayout* pLayouts = layouts)
-        //{
         DescriptorSetAllocateInfo allocateInfo = new()
         {
             SType = StructureType.DescriptorSetAllocateInfo,
@@ -109,15 +103,11 @@ public sealed class DescriptorContext : IResource
 
         _descriptorSets = new DescriptorSet[descriptorCount];
 
-        Span<DescriptorSet> descriptorSets = new DescriptorSet[descriptorCount];
-
         _deviceContext.Api.AllocateDescriptorSets(
             _deviceContext.LogicalDevice,
             new ReadOnlySpan<DescriptorSetAllocateInfo>(ref allocateInfo),
-            descriptorSets
+            new Span<DescriptorSet>(_descriptorSets)
         );
-
-        descriptorSets.CopyTo(new Span<DescriptorSet>(_descriptorSets));
 
         for (int i = 0; i < descriptorCount; i++)
         {

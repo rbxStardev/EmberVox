@@ -1,7 +1,7 @@
 using System.Numerics;
 using EmberVox.Rendering.Types;
 
-namespace EmberVox.Engine.VoxelUtils;
+namespace EmberVox.Engine.Voxels.Utils;
 
 public static class VoxelDataUtils
 {
@@ -64,7 +64,7 @@ public static class VoxelDataUtils
     };
 
     public static readonly HashSet<VoxelType> TransparentBlockSet = Enum.GetValues<VoxelType>()
-        .Where(voxel => voxel.HasFlag(VoxelType.Transparent))
+        .Where(voxel => (voxel & VoxelType.Transparent) == VoxelType.Transparent)
         .ToHashSet();
 
     public static readonly Dictionary<VoxelFace, Vector3> VoxelFaceNormals = new()

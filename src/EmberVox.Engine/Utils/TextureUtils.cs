@@ -2,7 +2,7 @@ using EmberVox.Core.Types;
 using EmberVox.Rendering.RenderingManagement;
 using StbImageSharp;
 
-namespace EmberVox.Rendering.Utils;
+namespace EmberVox.Engine.Utils;
 
 public static class TextureUtils
 {

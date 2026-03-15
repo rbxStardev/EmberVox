@@ -232,7 +232,7 @@ public sealed class VulkanRenderer : IDisposable
             SwapChainContext.SwapChainKhr,
             ulong.MaxValue,
             presentCompleteSemaphore,
-            default,
+            new Fence(),
             ref imageIndex
         );
 

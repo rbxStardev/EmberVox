@@ -33,9 +33,10 @@ public class DepthContext : IResource
             ImageUsageFlags.DepthStencilAttachmentBit
         );
 
-        _memoryRequirements = _deviceContext.Api.GetImageMemoryRequirements(
+        _deviceContext.Api.GetImageMemoryRequirements(
             _deviceContext.LogicalDevice,
-            DepthImage
+            DepthImage,
+            new Span<MemoryRequirements>(ref _memoryRequirements)
         );
         _depthImageMemory = _deviceContext.AllocateMemory(
             _memoryRequirements,

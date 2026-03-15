@@ -56,12 +56,13 @@ internal sealed class DefaultDebugContext : IResource
             PfnUserCallback = new PfnDebugUtilsMessengerCallbackEXT(DebugCallback),
         };
 
+        DebugUtilsMessengerEXT debugMessenger = default;
         if (
             DebugUtilsExtension.CreateDebugUtilsMessenger(
                 _instance,
-                &createInfo,
-                null,
-                out DebugUtilsMessengerEXT debugMessenger
+                new ReadOnlySpan<DebugUtilsMessengerCreateInfoEXT>(ref createInfo),
+                ReadOnlySpan<AllocationCallbacks>.Empty,
+                new Span<DebugUtilsMessengerEXT>(ref debugMessenger)
             ) != Result.Success
         )
             throw new Exception("Failed to create debug messenger");

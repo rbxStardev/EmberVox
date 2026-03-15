@@ -1,4 +1,4 @@
-namespace EmberVox.Engine.VoxelUtils;
+namespace EmberVox.Engine.Voxels;
 
 public enum VoxelFace
 {

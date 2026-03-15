@@ -34,6 +34,7 @@ public sealed class GraphicsPipelineContext : IResource
         _deviceContext = deviceContext;
         _swapChainContext = swapChainContext;
         _depthContext = depthContext;
+        // TODO - Get multiple render targets from params
         RenderTarget = renderTarget;
 
         // BIG TODO - Make shaders modular
@@ -65,7 +66,7 @@ public sealed class GraphicsPipelineContext : IResource
 
         DescriptorContext = new DescriptorContext(
             _deviceContext,
-            this,
+            DescriptorSetLayout,
             (uint)_swapChainContext.SwapChainImages.Length,
             uniformBuffers,
             RenderTarget
@@ -123,8 +124,7 @@ public sealed class GraphicsPipelineContext : IResource
                 StageFlags = ShaderStageFlags.FragmentBit,
             },
         ];
-        //fixed (DescriptorSetLayoutBinding* pBindings = bindings)
-        //{
+
         using ManagedPointer<DescriptorSetLayoutBinding> bindingsInfo = new(bindingsArray.Length);
         bindingsArray.CopyTo(bindingsInfo.Span);
 
@@ -144,7 +144,6 @@ public sealed class GraphicsPipelineContext : IResource
         );
 
         return descriptorSetLayout;
-        //}
     }
 
     private unsafe PipelineLayout CreatePipelineLayout()
@@ -174,19 +173,6 @@ public sealed class GraphicsPipelineContext : IResource
 
     private unsafe Pipeline CreateGraphicsPipeline(PipelineShaderStageCreateInfo[] shaderStages)
     {
-        //DynamicState[] dynamicStates = [DynamicState.Viewport, DynamicState.Scissor];
-
-        //fixed (DynamicState* pDynamicStates = dynamicStates)
-        //{
-        /*
-        PipelineDynamicStateCreateInfo dynamicState = new()
-        {
-            SType = StructureType.PipelineDynamicStateCreateInfo,
-            DynamicStateCount = (uint)dynamicStates.Length,
-            PDynamicStates = pDynamicStates,
-        };
-        */
-
         // -> Dynamic State
         DynamicState[] dynamicStatesArray = [DynamicState.Viewport, DynamicState.Scissor];
 
@@ -198,26 +184,12 @@ public sealed class GraphicsPipelineContext : IResource
         );
 
         // -> Vertex Input State
+        // TODO - Binding and Attribute description as params
         VertexInputBindingDescription[] bindingDescriptionsArray =
             VertexUtils.GetBindingDescription();
         VertexInputAttributeDescription[] attributeDescriptionsArray =
             VertexUtils.GetAttributeDescriptions();
-        /*
-        fixed (VertexInputAttributeDescription* pAttributeDescriptions = attributeDescriptionsArray)
-        {
-            fixed (VertexInputBindingDescription* pBindingDescriptions = bindingDescriptionsArray)
-            {
-                PipelineVertexInputStateCreateInfo vertexInputInfo = new()
-                {
-                    SType = StructureType.PipelineVertexInputStateCreateInfo,
-                    VertexBindingDescriptionCount = (uint)bindingDescriptionsArray.Length,
-                    PVertexBindingDescriptions = pBindingDescriptions,
-                    VertexAttributeDescriptionCount = (uint)attributeDescriptionsArray.Length,
-                    PVertexAttributeDescriptions = pAttributeDescriptions,
-                };
-                */
 
-        // TODO - Binding and Attribute description as params
         using ManagedPointer<VertexInputBindingDescription> bindingDescriptions = new(
             bindingDescriptionsArray.Length
         );
@@ -239,71 +211,17 @@ public sealed class GraphicsPipelineContext : IResource
         PipelineViewportStateCreateInfo viewportStateInfo = Initializers.CreateViewportStateInfo();
 
         // -> Rasterizer State
-        /*PipelineRasterizationStateCreateInfo rasterizer = new()
-        {
-            SType = StructureType.PipelineRasterizationStateCreateInfo,
-            DepthClampEnable = Vk.False,
-            RasterizerDiscardEnable = Vk.False,
-            PolygonMode = PolygonMode.Fill,
-            CullMode = CullModeFlags.BackBit,
-            FrontFace = FrontFace.CounterClockwise,
-            DepthBiasEnable = Vk.False,
-            DepthBiasSlopeFactor = 1.0f,
-            LineWidth = 1.0f,
-        };*/
 
-        /*
-        PipelineRasterizationStateCreateInfo rasterizer = new(
-            StructureType.PipelineRasterizationStateCreateInfo,
-            null,
-            null,
-            Vk.False,
-            Vk.False,
-            PolygonMode.Fill,
-            CullModeFlags.BackBit,
-            FrontFace.Clockwise,
-            Vk.False,
-            0.0f,
-            0.0f,
-            1.0f,
-            1.0f
-        );
-        */
         PipelineRasterizationStateCreateInfo rasterizationStateInfo =
             Initializers.CreateRasterizationStateInfo();
 
         // -> Multisample State
-        /*
-        PipelineMultisampleStateCreateInfo multisampling = new()
-        {
-            SType = StructureType.PipelineMultisampleStateCreateInfo,
-            RasterizationSamples = SampleCountFlags.Count1Bit,
-            SampleShadingEnable = Vk.False,
-        };
-        */
         // TODO - Add params
         PipelineMultisampleStateCreateInfo multisampleStateInfo =
             Initializers.CreateMultisampleStateInfo();
 
         // -> Color Blend State
-        /*
-        PipelineColorBlendAttachmentState colorBlendAttachment = new()
-        {
-            ColorWriteMask =
-                ColorComponentFlags.RBit
-                | ColorComponentFlags.GBit
-                | ColorComponentFlags.BBit
-                | ColorComponentFlags.ABit,
-            BlendEnable = Vk.True,
-            SrcColorBlendFactor = BlendFactor.SrcAlpha,
-            DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
-            ColorBlendOp = BlendOp.Add,
-            SrcAlphaBlendFactor = BlendFactor.One,
-            DstAlphaBlendFactor = BlendFactor.Zero,
-            AlphaBlendOp = BlendOp.Add,
-        };
-        */
-        // TODO -- Get from params
+        // TODO -- Get multiple from params
         PipelineColorBlendAttachmentState[] colorBlendAttachmentStateArray =
         [
             new()
@@ -352,8 +270,6 @@ public sealed class GraphicsPipelineContext : IResource
         );
         shaderStages.CopyTo(shaderStageInfo.Span);
 
-        //fixed (PipelineShaderStageCreateInfo* pShaderStages = shaderStages)
-        //{
         GraphicsPipelineCreateInfo pipelineInfo = new()
         {
             SType = StructureType.GraphicsPipelineCreateInfo,
@@ -375,7 +291,7 @@ public sealed class GraphicsPipelineContext : IResource
         if (
             _deviceContext.Api.CreateGraphicsPipelines(
                 _deviceContext.LogicalDevice,
-                default,
+                new PipelineCache(),
                 1,
                 new ReadOnlySpan<GraphicsPipelineCreateInfo>(ref pipelineInfo),
                 ReadOnlySpan<AllocationCallbacks>.Empty,
@@ -385,17 +301,11 @@ public sealed class GraphicsPipelineContext : IResource
             throw new Exception("Failed to create graphics pipeline.");
 
         return pipeline;
-        //}
-        //}
-        //}
-        //}
     }
 
+    // TODO - Move outside this context
     private unsafe ShaderModule CreateShaderModule(byte[] shaderCode)
     {
-        //fixed (byte* pShaderCode = shaderCode)
-        //{
-
         using ManagedPointer<byte> shaderCodeInfo = new(shaderCode.Length);
         shaderCode.CopyTo(shaderCodeInfo.Span);
 

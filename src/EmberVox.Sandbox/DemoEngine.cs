@@ -2,12 +2,13 @@ using System.Numerics;
 using EmberVox.Core.Types;
 using EmberVox.Engine;
 using EmberVox.Engine.Components;
-using EmberVox.Engine.VoxelUtils;
+using EmberVox.Engine.Utils;
+using EmberVox.Engine.Voxels;
+using EmberVox.Engine.Voxels.Utils;
 using EmberVox.Platform;
 using EmberVox.Rendering;
 using EmberVox.Rendering.RenderingManagement;
 using EmberVox.Rendering.Types;
-using EmberVox.Rendering.Utils;
 using Silk.NET.Assimp;
 using Silk.NET.Input;
 using Silk.NET.Maths;
@@ -128,7 +129,6 @@ public class DemoEngine : IDisposable
         }
 
         #endregion
-
 
         /*
         #region Rubber Duck
@@ -275,7 +275,14 @@ public class DemoEngine : IDisposable
     {
         Scene* scene = _assimp.ImportFile(
             modelPath,
-            (uint)(PostProcessSteps.Triangulate | PostProcessSteps.FlipWindingOrder)
+            (uint)(
+                PostProcessSteps.JoinIdenticalVertices
+                | PostProcessSteps.Triangulate
+                | PostProcessSteps.FlipWindingOrder
+                | PostProcessSteps.ImproveCacheLocality
+                | PostProcessSteps.RemoveRedundantMaterials
+                | PostProcessSteps.GenerateUVCoords
+            )
         );
 
         if (scene == null)

@@ -89,10 +89,12 @@ internal class ImageUtils
             deviceContext.PhysicalDevice,
             imageFormat
         );
+
         if (
-            !formatProperties.OptimalTilingFeatures.HasFlag(
-                FormatFeatureFlags.SampledImageFilterLinearBit
-            )
+            (
+                formatProperties.OptimalTilingFeatures
+                & FormatFeatureFlags.SampledImageFilterLinearBit
+            ) == 0
         )
         {
             throw new Exception("Texture image format does not support linear blitting!");
@@ -131,7 +133,7 @@ internal class ImageUtils
                 commandBuffer,
                 PipelineStageFlags.TransferBit,
                 PipelineStageFlags.TransferBit,
-                default,
+                DependencyFlags.None,
                 ReadOnlySpan<MemoryBarrier>.Empty,
                 ReadOnlySpan<BufferMemoryBarrier>.Empty,
                 new ReadOnlySpan<ImageMemoryBarrier>(ref barrier)
@@ -176,7 +178,7 @@ internal class ImageUtils
                 commandBuffer,
                 PipelineStageFlags.TransferBit,
                 PipelineStageFlags.FragmentShaderBit,
-                default,
+                DependencyFlags.None,
                 ReadOnlySpan<MemoryBarrier>.Empty,
                 ReadOnlySpan<BufferMemoryBarrier>.Empty,
                 new ReadOnlySpan<ImageMemoryBarrier>(ref barrier)
@@ -198,7 +200,7 @@ internal class ImageUtils
             commandBuffer,
             PipelineStageFlags.TransferBit,
             PipelineStageFlags.FragmentShaderBit,
-            default,
+            DependencyFlags.None,
             ReadOnlySpan<MemoryBarrier>.Empty,
             ReadOnlySpan<BufferMemoryBarrier>.Empty,
             new ReadOnlySpan<ImageMemoryBarrier>(ref barrier)

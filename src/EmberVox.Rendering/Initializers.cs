@@ -5,6 +5,8 @@ namespace EmberVox.Rendering;
 
 public static class Initializers
 {
+    #region Graphics Pipeline
+
     public static unsafe PipelineDynamicStateCreateInfo CreateDynamicStateInfo(
         ManagedPointer<DynamicState> dynamicStates
     )
@@ -107,4 +109,6 @@ public static class Initializers
             StencilTestEnable = Vk.False,
         };
     }
+
+    #endregion
 }

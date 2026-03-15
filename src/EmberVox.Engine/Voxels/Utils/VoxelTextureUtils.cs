@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace EmberVox.Engine.VoxelUtils;
+namespace EmberVox.Engine.Voxels.Utils;
 
 internal static class VoxelTextureUtils
 {

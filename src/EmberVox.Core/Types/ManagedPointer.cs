@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace EmberVox.Core.Types;
 
+// TODO - Move *ToIndexable* to interface
 public sealed unsafe class ManagedPointer<T> : MemoryManager<T>, IEnumerable<T>
     where T : unmanaged
 {
@@ -12,6 +13,8 @@ public sealed unsafe class ManagedPointer<T> : MemoryManager<T>, IEnumerable<T>
     public T* Pointer { get; }
     public Span<T> Span => Pointer != null ? new Span<T>(Pointer, Length) : [];
     public int LengthInBytes => Length * sizeof(T);
+
+    // TODO - ToIndexable
     public ref T this[int index] => ref GetElementUnsafe(index);
 
     private bool _disposedValue;
@@ -40,12 +43,14 @@ public sealed unsafe class ManagedPointer<T> : MemoryManager<T>, IEnumerable<T>
         GC.AddMemoryPressure(LengthInBytes);
     }
 
+    // TODO - ToIndexable
     ref T GetElementUnsafe(int index)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Length);
         return ref Pointer[index];
     }
 
+    // TODO - ToIndexable
     public ref readonly T TryGetReadOnlyRef(int index) => ref GetElementUnsafe(index);
 
     public bool TryGetSpanUnsafe(out Span<T> span)

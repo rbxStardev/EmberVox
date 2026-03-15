@@ -75,8 +75,8 @@ public class Texture2D : IRenderable
         _commandContext.CopyBufferToImage(
             stagingBuffer,
             _textureImage,
-            (uint)textureData.Width,
-            (uint)textureData.Height
+            textureData.Width,
+            textureData.Height
         );
 
         ImageUtils.GenerateMipmaps(
@@ -129,6 +129,7 @@ public class Texture2D : IRenderable
         GC.SuppressFinalize(this);
     }
 
+    // TODO - Move creation outside texture class
     private Sampler CreateTextureSampler()
     {
         PhysicalDeviceProperties properties = _deviceContext.Api.GetPhysicalDeviceProperties(

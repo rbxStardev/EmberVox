@@ -8,7 +8,7 @@ namespace EmberVox.Rendering.Contexts;
 public sealed class CommandContext : IResource
 {
     public CommandPool MainCommandPool { get; }
-    public CommandBuffer[] CommandBuffers { get; private set; }
+    public CommandBuffer[] CommandBuffers { get; }
 
     private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
@@ -41,135 +41,6 @@ public sealed class CommandContext : IResource
         GC.SuppressFinalize(this);
     }
 
-    /*
-    public unsafe void RecordCommandBuffer(
-        DescriptorContext descriptorContext,
-        uint imageIndex,
-        int currentFrame,
-        BufferContext vertexBuffer,
-        BufferContext indexBuffer
-    )
-    {
-        // --> Begin Frame <--
-        CommandBuffer commandBuffer = CommandBuffers[currentFrame];
-
-        CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
-        var beginResult = _deviceContext.Api.BeginCommandBuffer(
-            commandBuffer,
-            new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
-        );
-        //Logger.Info?.WriteLine($"BeginCommandBuffer: {beginResult}");
-
-        TransitionImageLayout(
-            commandBuffer,
-            imageIndex,
-            ImageLayout.Undefined,
-            ImageLayout.ColorAttachmentOptimal,
-            default,
-            AccessFlags2.ColorAttachmentWriteBit,
-            PipelineStageFlags2.ColorAttachmentOutputBit,
-            PipelineStageFlags2.ColorAttachmentOutputBit
-        );
-
-        ClearValue clearColor = new(new ClearColorValue(0.5f, 0.5f, 0.5f, 1.0f));
-        ClearValue clearDepth = new ClearValue(null, new ClearDepthStencilValue(1.0f, 0));
-        RenderingAttachmentInfo attachmentInfo = new()
-        {
-            SType = StructureType.RenderingAttachmentInfo,
-            ImageView = _swapChainContext.SwapChainImageViews[imageIndex],
-            ImageLayout = ImageLayout.ColorAttachmentOptimal,
-            LoadOp = AttachmentLoadOp.Clear,
-            StoreOp = AttachmentStoreOp.Store,
-            ClearValue = clearColor,
-        };
-        RenderingAttachmentInfo depthAttachmentInfo = new()
-        {
-            SType = StructureType.RenderingAttachmentInfo,
-            ImageView = _swapChainContext.SwapChainImageViews[imageIndex],
-            ImageLayout = ImageLayout.ColorAttachmentOptimal,
-            LoadOp = AttachmentLoadOp.Clear,
-            StoreOp = AttachmentStoreOp.Store,
-            ClearValue = clearDepth,
-        };
-
-        RenderingInfo renderingInfo = new()
-        {
-            SType = StructureType.RenderingInfo,
-            RenderArea = new Rect2D()
-            {
-                Offset = new Offset2D(0, 0),
-                Extent = _swapChainContext.SwapChainExtent,
-            },
-            LayerCount = 1,
-            ColorAttachmentCount = 1,
-            PColorAttachments = &attachmentInfo,
-        };
-
-        _deviceContext.Api.CmdBeginRendering(commandBuffer, new ReadOnlySpan<RenderingInfo>(ref renderingInfo));
-
-        Viewport viewport = new(
-            0.0f,
-            0.0f,
-            _swapChainContext.SwapChainExtent.Width,
-            _swapChainContext.SwapChainExtent.Height,
-            0.0f,
-            1.0f
-        );
-        _deviceContext.Api.CmdSetViewport(commandBuffer, 0, new ReadOnlySpan<Viewport>(ref viewport));
-
-        Rect2D scissor = new(new Offset2D(0, 0), _swapChainContext.SwapChainExtent);
-        _deviceContext.Api.CmdSetScissor(commandBuffer, 0, new ReadOnlySpan<Rect2D>(ref scissor));
-
-        DescriptorSet descriptorSet = descriptorContext[(int)imageIndex];
-        _deviceContext.Api.CmdBindDescriptorSets(
-            commandBuffer,
-            PipelineBindPoint.Graphics,
-            _graphicsPipelineContext.PipelineLayout,
-            0,
-            new ReadOnlySpan<DescriptorSet>(ref descriptorSet),
-            ReadOnlySpan<uint>.Empty
-        );
-
-        // --> Draw Mesh <--
-        _deviceContext.Api.CmdBindPipeline(
-            commandBuffer,
-            PipelineBindPoint.Graphics,
-            _graphicsPipelineContext.GraphicsPipeline
-        );
-        //Console.WriteLine($"Drawing frame, imageIndex: {imageIndex}, currentFrame: {currentFrame}");
-
-        Buffer vertexBufferBuffer = vertexBuffer.Buffer;
-        _deviceContext.Api.CmdBindVertexBuffers(
-            commandBuffer,
-            0,
-            new ReadOnlySpan<Buffer>(ref vertexBufferBuffer),
-            new ReadOnlySpan<ulong>([0])
-        );
-
-        Buffer indexBufferBuffer = indexBuffer.Buffer;
-        _deviceContext.Api.CmdBindIndexBuffer(commandBuffer, indexBufferBuffer, 0, IndexType.Uint32);
-
-        _deviceContext.Api.CmdDrawIndexed(commandBuffer, 36, 1, 0, 0, 0);
-
-        // --> End Frame <--
-        _deviceContext.Api.CmdEndRendering(commandBuffer);
-
-        TransitionImageLayout(
-            commandBuffer,
-            imageIndex,
-            ImageLayout.ColorAttachmentOptimal,
-            ImageLayout.PresentSrcKhr,
-            AccessFlags2.ColorAttachmentWriteBit,
-            default,
-            PipelineStageFlags2.ColorAttachmentOutputBit,
-            PipelineStageFlags2.BottomOfPipeBit
-        );
-
-        var endResult = _deviceContext.Api.EndCommandBuffer(commandBuffer);
-        //Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
-    }
-    */
-
     public unsafe void BeginCommandBufferRecording(
         DepthContext depthContext,
         uint imageIndex,
@@ -183,14 +54,13 @@ public sealed class CommandContext : IResource
             commandBuffer,
             new ReadOnlySpan<CommandBufferBeginInfo>(ref beginInfo)
         );
-        //Logger.Info?.WriteLine($"BeginCommandBuffer: {beginResult}");
 
         TransitionImageLayout(
             commandBuffer,
             _swapChainContext.SwapChainImages[imageIndex],
             ImageLayout.Undefined,
             ImageLayout.ColorAttachmentOptimal,
-            default,
+            AccessFlags2.None,
             AccessFlags2.ColorAttachmentWriteBit,
             PipelineStageFlags2.ColorAttachmentOutputBit,
             PipelineStageFlags2.ColorAttachmentOutputBit,
@@ -279,14 +149,13 @@ public sealed class CommandContext : IResource
             ImageLayout.ColorAttachmentOptimal,
             ImageLayout.PresentSrcKhr,
             AccessFlags2.ColorAttachmentWriteBit,
-            default,
+            AccessFlags2.None,
             PipelineStageFlags2.ColorAttachmentOutputBit,
             PipelineStageFlags2.BottomOfPipeBit,
             ImageAspectFlags.ColorBit
         );
 
         var endResult = _deviceContext.Api.EndCommandBuffer(commandBuffer);
-        //Logger.Info?.WriteLine($"EndCommandBuffer: {endResult}");
     }
 
     public CommandBuffer BeginSingleTimeCommands()
@@ -336,7 +205,7 @@ public sealed class CommandContext : IResource
         _deviceContext.Api.QueueWaitIdle(_deviceContext.GraphicsQueue.Queue);
     }
 
-    public unsafe void CopyBuffer(
+    public void CopyBuffer(
         BufferContext srcBufferContext,
         BufferContext dstBufferContext,
         ulong size
@@ -533,7 +402,7 @@ public sealed class CommandContext : IResource
             commandBuffer,
             sourceStage,
             destinationStage,
-            default,
+            DependencyFlags.None,
             ReadOnlySpan<MemoryBarrier>.Empty,
             ReadOnlySpan<BufferMemoryBarrier>.Empty,
             new ReadOnlySpan<ImageMemoryBarrier>(ref barrier)

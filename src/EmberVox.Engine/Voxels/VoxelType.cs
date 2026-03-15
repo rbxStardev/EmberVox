@@ -1,4 +1,4 @@
-namespace EmberVox.Engine.VoxelUtils;
+namespace EmberVox.Engine.Voxels;
 
 [Flags]
 public enum VoxelType : uint
