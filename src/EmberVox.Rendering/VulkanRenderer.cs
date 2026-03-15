@@ -13,7 +13,6 @@ using Silk.NET.Core.Native;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
-using Silk.NET.Windowing;
 using Buffer = Silk.NET.Vulkan.Buffer;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
@@ -131,7 +130,7 @@ public sealed class VulkanRenderer : IDisposable
 
         ResourceManager = new ResourceManager();
 
-        PlugEvents();
+        //PlugEvents();
     }
 
     public void Dispose()
@@ -184,14 +183,12 @@ public sealed class VulkanRenderer : IDisposable
 
     private void PlugEvents()
     {
-        _windowContext.Handle.Render += WindowOnRender;
-        _windowContext.Handle.FramebufferResize += WindowOnFramebufferResize;
+        //_windowContext.Handle.Render += WindowOnRender;
+        //_windowContext.Handle.FramebufferResize += WindowOnFramebufferResize;
     }
 
     public void MainLoop()
     {
-        _windowContext.Handle.Run();
-
         DeviceContext.Api.DeviceWaitIdle(DeviceContext.LogicalDevice);
     }
 
@@ -210,7 +207,7 @@ public sealed class VulkanRenderer : IDisposable
 
     public void WindowOnFramebufferResize(Vector2D<int> newSize) => _frameBufferResized = true;
 
-    public unsafe void WindowOnRender(double deltaTime)
+    public unsafe void WindowOnRender(double deltaTime, Matrix4x4 view, Matrix4x4 projection)
     {
         _windowContext.Handle.Title = $"EmberVox: Vulkan - {(int)(1.0 / deltaTime)} FPS";
 
@@ -315,7 +312,7 @@ public sealed class VulkanRenderer : IDisposable
 
         CommandContext.EndCommandBufferRecording(imageIndex, _frameIndex);
 
-        UpdateUniformBuffer((int)imageIndex, Quaternion.Identity, Vector3.Zero, Vector3.One, 70.0f);
+        UpdateUniformBuffer((int)imageIndex, view, projection);
 
         PipelineStageFlags waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
         SubmitInfo submitInfo = new()
@@ -400,31 +397,23 @@ public sealed class VulkanRenderer : IDisposable
         }
     }
 
-    private void UpdateUniformBuffer(
-        int currentImage,
-        Quaternion modelRotation,
-        Vector3 modelPosition,
-        Vector3 modelScale,
-        float fieldOfView
-    )
+    private void UpdateUniformBuffer(int currentImage, Matrix4x4 view, Matrix4x4 projection)
     {
         UniformBufferObject uniformBufferObject = new()
         {
-            Model =
-                Matrix4x4.CreateFromQuaternion(
-                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, float.Pi)
-                )
-                * Matrix4x4.CreateFromQuaternion(modelRotation)
-                * Matrix4x4.CreateTranslation(modelPosition)
-                * Matrix4x4.CreateScale(modelScale),
-            View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
-            Proj = Matrix4x4.CreatePerspectiveFieldOfView(
+            Model = Matrix4x4.CreateFromQuaternion(
+                Quaternion.CreateFromAxisAngle(Vector3.UnitY, float.Pi)
+            ),
+            View = view,
+            Proj = projection,
+            //View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
+            /*Proj = Matrix4x4.CreatePerspectiveFieldOfView(
                 float.DegreesToRadians(fieldOfView),
                 (float)SwapChainContext.SwapChainExtent.Width
                     / SwapChainContext.SwapChainExtent.Height,
                 0.1f,
                 500.0f
-            ),
+            ),*/
         };
         var proj = uniformBufferObject.Proj;
         proj.M22 *= -1; // Flip Y (DO NOT TURN OFFFFFF)
