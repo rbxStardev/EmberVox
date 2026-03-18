@@ -41,6 +41,39 @@ public sealed class GraphicsPipelineContext : IResource
         byte[] shaderCode = File.ReadAllBytes(
             Path.Combine(AppContext.BaseDirectory, "Shaders", "slang.spv")
         );
+
+        // I DID ITTT im gonna place a to do just so i dont forget to remove it, its a test case anyways
+        // TODO - Remove test code once done testing obviously
+        Silk.NET.SPIRV.Reflect.Reflect reflect = Silk.NET.SPIRV.Reflect.Reflect.GetApi();
+        ShaderReflector reflector = new ShaderReflector(reflect, shaderCode);
+        Logger.Debug?.WriteLine("Dumping shader...");
+        Logger.Metric?.WriteLine($"-> shader stage: {reflector.StageFlags}");
+        Logger.Metric?.WriteLine($"-> shader uniform buffer size: {reflector.UniformBufferSize}");
+        Logger.Metric?.WriteLine("Dumping DescriptorBindings...");
+        foreach (
+            KeyValuePair<string, ShaderBindings> keyValuePair in reflector.DescriptorBindingsByName
+        )
+            Logger.Metric?.WriteLine($"-> Binding {keyValuePair.Key}: {keyValuePair.Value}");
+        Logger.Metric?.WriteLine("Dumping MemberBindings...");
+        foreach (
+            KeyValuePair<string, ShaderBindings> keyValuePair in reflector.MemberBindingsByName
+        )
+            Logger.Metric?.WriteLine($"-> Binding {keyValuePair.Key}: {keyValuePair.Value}");
+        Logger.Metric?.WriteLine("Variable InputVariables...");
+        foreach (
+            KeyValuePair<string, ShaderVariable> keyValuePair in reflector.InputVariablesByName
+        )
+            Logger.Metric?.WriteLine($"-> Binding {keyValuePair.Key}: {keyValuePair.Value}");
+        Logger.Metric?.WriteLine("Dumping OutputVariables...");
+        foreach (
+            KeyValuePair<string, ShaderVariable> keyValuePair in reflector.OutputVariablesByName
+        )
+            Logger.Metric?.WriteLine($"-> Variable {keyValuePair.Key}: {keyValuePair.Value}");
+
+        Logger.Debug?.WriteLine("Dumped shader successfully");
+        Console.WriteLine();
+        // end of test code
+
         ShaderModule shaderModule = CreateShaderModule(shaderCode);
 
         PipelineShaderStageCreateInfo vertShaderStageInfo = new()
