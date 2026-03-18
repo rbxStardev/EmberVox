@@ -1,3 +1,4 @@
+using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
 using EmberVox.Rendering.Utils;
 using Silk.NET.SPIRV.Reflect;
@@ -35,6 +36,28 @@ public class ShaderReflector
         ReflectShaderBindings();
         ReflectShaderInputVariables();
         ReflectShaderOutputVariables();
+    }
+
+    public void Dump()
+    {
+        Logger.Debug?.WriteLine("Dumping reflector...");
+        Logger.Metric?.WriteLine($"-> shader stage: {StageFlags}");
+        Logger.Metric?.WriteLine($"-> shader uniform buffer size: {UniformBufferSize}");
+        Logger.Metric?.WriteLine("Dumping DescriptorBindings...");
+        foreach (KeyValuePair<string, ShaderBindings> keyValuePair in DescriptorBindingsByName)
+            Logger.Metric?.WriteLine($"-> Binding {keyValuePair.Key}: {keyValuePair.Value}");
+        Logger.Metric?.WriteLine("Dumping MemberBindings...");
+        foreach (KeyValuePair<string, ShaderBindings> keyValuePair in MemberBindingsByName)
+            Logger.Metric?.WriteLine($"-> Binding {keyValuePair.Key}: {keyValuePair.Value}");
+        Logger.Metric?.WriteLine("Variable InputVariables...");
+        foreach (KeyValuePair<string, ShaderVariable> keyValuePair in InputVariablesByName)
+            Logger.Metric?.WriteLine($"-> Binding {keyValuePair.Key}: {keyValuePair.Value}");
+        Logger.Metric?.WriteLine("Dumping OutputVariables...");
+        foreach (KeyValuePair<string, ShaderVariable> keyValuePair in OutputVariablesByName)
+            Logger.Metric?.WriteLine($"-> Variable {keyValuePair.Key}: {keyValuePair.Value}");
+
+        Logger.Debug?.WriteLine("Dumped reflector successfully");
+        Console.WriteLine();
     }
 
     private ReflectShaderModule ReflectShaderModule(Span<byte> shaderCode)
@@ -84,43 +107,36 @@ public class ShaderReflector
                 BindingIndex = pDescriptor->Binding,
                 Size = pDescriptor->Block.Size,
                 Offset = pDescriptor->Block.Offset,
+                BindingType = ShaderUtils.ShaderBindingTypeFromDescriptorType(
+                    pDescriptor->DescriptorType
+                ),
             };
 
-            switch (pDescriptor->DescriptorType)
+            if (descriptorBinding.BindingType == ShaderBindingType.UniformBuffer)
             {
-                case DescriptorType.UniformBuffer:
+                totalUniformBufferSize += descriptorBinding.Size;
+
+                for (int blockIndex = 0; blockIndex < pDescriptor->Block.MemberCount; blockIndex++)
                 {
-                    descriptorBinding.BindingType = ShaderBindingType.UniformBuffer;
-                    totalUniformBufferSize += descriptorBinding.Size;
-                    break;
+                    BlockVariable member = pDescriptor->Block.Members[blockIndex];
+
+                    ShaderBindings memberBinding = new ShaderBindings
+                    {
+                        BindingIndex = pDescriptor->Binding,
+                        SetIndex = pDescriptor->Set,
+                        Size = member.PaddedSize,
+                        Offset = member.Offset,
+                        BindingType = ShaderBindingType.UniformBufferMember,
+                    };
+
+                    MemberBindingsByName[new string((sbyte*)member.Name)] = memberBinding;
                 }
             }
 
+            UniformBufferSize = totalUniformBufferSize;
+
             DescriptorBindingsByName[new string((sbyte*)pDescriptor->Name)] = descriptorBinding;
-
-            if (pDescriptor->DescriptorType != DescriptorType.UniformBuffer)
-            {
-                continue;
-            }
-
-            for (int blockIndex = 0; blockIndex < pDescriptor->Block.MemberCount; blockIndex++)
-            {
-                BlockVariable member = pDescriptor->Block.Members[blockIndex];
-
-                ShaderBindings memberBinding = new ShaderBindings
-                {
-                    BindingIndex = pDescriptor->Binding,
-                    SetIndex = pDescriptor->Set,
-                    Size = member.PaddedSize,
-                    Offset = member.Offset,
-                    BindingType = ShaderBindingType.UniformBufferMember,
-                };
-
-                MemberBindingsByName[new string((sbyte*)member.Name)] = memberBinding;
-            }
         }
-
-        UniformBufferSize = totalUniformBufferSize;
     }
 
     private unsafe void ReflectShaderInputVariables()
@@ -145,6 +161,7 @@ public class ShaderReflector
         {
             InterfaceVariable* pVariable = ppInterfaceVariables[i];
 
+            // Skip built-in variables JUST IN CAAAAAAAAAAAAASE there happens to be one
             if (pVariable->Location == 0xFFFFFFFF)
             {
                 continue;

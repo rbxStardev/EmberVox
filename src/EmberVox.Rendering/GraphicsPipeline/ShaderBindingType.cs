@@ -5,4 +5,6 @@ public enum ShaderBindingType
     Unknown,
     UniformBuffer,
     UniformBufferMember,
+    CombinedImageSampler,
+    StorageBuffer,
 }
