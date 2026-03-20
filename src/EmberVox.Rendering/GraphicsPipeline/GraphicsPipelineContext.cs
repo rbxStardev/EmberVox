@@ -42,21 +42,6 @@ public sealed class GraphicsPipelineContext : IResource
             Path.Combine(AppContext.BaseDirectory, "Shaders", "shader.spv")
         );
 
-        // I DID ITTT im gonna place a to do just so i dont forget to remove it, its a test case anyways
-        // TODO - Remove test code once done testing obviously
-        Silk.NET.SPIRV.Reflect.Reflect reflect = Silk.NET.SPIRV.Reflect.Reflect.GetApi();
-        byte[] vertCode = File.ReadAllBytes(
-            Path.Combine(AppContext.BaseDirectory, "Shaders", "base.vert.spv")
-        );
-        ShaderReflector vertReflector = new ShaderReflector(reflect, vertCode);
-        vertReflector.Dump();
-        byte[] fragCode = File.ReadAllBytes(
-            Path.Combine(AppContext.BaseDirectory, "Shaders", "base.frag.spv")
-        );
-        ShaderReflector fragReflector = new ShaderReflector(reflect, fragCode);
-        fragReflector.Dump();
-        // end of test code
-
         ShaderModule shaderModule = CreateShaderModule(shaderCode);
 
         PipelineShaderStageCreateInfo vertShaderStageInfo = new()
@@ -216,7 +201,7 @@ public sealed class GraphicsPipelineContext : IResource
         attributeDescriptionsArray.CopyTo(attributeDescriptions.Span);
 
         PipelineVertexInputStateCreateInfo vertexInputStateInfo =
-            Initializers.CreateVertexInputStateInfo(bindingDescriptions, attributeDescriptions);
+            Initializers.CreateVertexInputStateInfo(attributeDescriptions, bindingDescriptions);
 
         // -> Input Assembly State
         // TODO - Topology as param

@@ -1,4 +1,5 @@
 using System.Numerics;
+using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
 using EmberVox.Engine;
 using EmberVox.Engine.Components;
@@ -7,14 +8,17 @@ using EmberVox.Engine.Voxels;
 using EmberVox.Engine.Voxels.Utils;
 using EmberVox.Platform;
 using EmberVox.Rendering;
+using EmberVox.Rendering.GraphicsPipeline;
 using EmberVox.Rendering.RenderingManagement;
 using EmberVox.Rendering.Types;
 using Silk.NET.Assimp;
 using Silk.NET.Input;
 using Silk.NET.Maths;
+using Silk.NET.Vulkan;
 using Silk.NET.Windowing;
 using StbImageSharp;
 using Camera = EmberVox.Engine.Camera;
+using File = System.IO.File;
 using Material = EmberVox.Rendering.Types.Material;
 using Mesh = EmberVox.Rendering.Types.Mesh;
 
@@ -114,6 +118,7 @@ public class DemoEngine : IDisposable
         #endregion
         */
 
+        /*
         #region Viking Room
 
         //-> Loading Model File
@@ -129,6 +134,7 @@ public class DemoEngine : IDisposable
         }
 
         #endregion
+        */
 
         /*
         #region Rubber Duck
@@ -147,6 +153,7 @@ public class DemoEngine : IDisposable
         #endregion
         */
 
+        /*
         #region Voxel
 
         //-> Gathering Model Vertices & Indices
@@ -191,7 +198,9 @@ public class DemoEngine : IDisposable
         _renderer.RegisterMesh(voxelMesh.Mesh, voxelMesh.Material);
 
         #endregion
+        */
 
+        /*
         #region Textured Voxel
 
         //-> Gathering Model Vertices & Indices
@@ -240,7 +249,7 @@ public class DemoEngine : IDisposable
         _renderer.RegisterMesh(texturedVoxelMesh.Mesh, texturedVoxelMesh.Material);
 
         #endregion
-
+        */
 
         /*
         Mesh mesh2 = new()
@@ -259,6 +268,82 @@ public class DemoEngine : IDisposable
         */
 
         _mainCamera = new Camera();
+
+        byte[] vertCode = File.ReadAllBytes(
+            Path.Combine(AppContext.BaseDirectory, "Shaders", "base.vert.spv")
+        );
+        byte[] fragCode = File.ReadAllBytes(
+            Path.Combine(AppContext.BaseDirectory, "Shaders", "base.frag.spv")
+        );
+
+        Logger.Warning?.WriteLine("Initializing test graphics pipeline");
+        NewGraphicsPipeline newGraphicsPipeline = GraphicsPipelineBuilder
+            .Empty.ProvideDependencies(_renderer.DeviceContext)
+            .WithVertexShaderCode(vertCode)
+            .WithFragmentShaderCode(fragCode)
+            .WithPrimitiveTopology(PrimitiveTopology.TriangleList)
+            .WithTargetInfo(
+                new TargetInfo
+                {
+                    ColorTargetDescriptions =
+                    [
+                        new ColorTargetDescription
+                        {
+                            BlendState = new BlendState
+                            {
+                                ColorWriteMask =
+                                    ColorComponentFlags.RBit
+                                    | ColorComponentFlags.GBit
+                                    | ColorComponentFlags.BBit
+                                    | ColorComponentFlags.ABit,
+                                EnableBlend = true,
+                                SrcColorBlendFactor = BlendFactor.SrcAlpha,
+                                DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
+                                ColorBlendOp = BlendOp.Add,
+                                SrcAlphaBlendFactor = BlendFactor.One,
+                                DstAlphaBlendFactor = BlendFactor.Zero,
+                                AlphaBlendOp = BlendOp.Add,
+                            },
+                            Format = _renderer.SwapChainContext.SwapChainImageFormat,
+                        },
+                    ],
+                    DepthAttachmentFormat = _renderer.DepthContext.DepthImageFormat,
+                }
+            )
+            .WithInputRate(VertexInputRate.Vertex)
+            .WithRasterizerState(
+                new RasterizerState
+                {
+                    PolygonMode = PolygonMode.Fill,
+                    FrontFace = FrontFace.Clockwise,
+                    CullMode = CullModeFlags.BackBit,
+                    LineWidth = 1.0f,
+                    DepthClampEnable = false,
+                    DepthBiasClamp = 0.0f,
+                    DepthBiasEnable = false,
+                    DepthBiasConstantFactor = 0.0f,
+                    DepthBiasSlopeFactor = 1.0f,
+                    RasterizerDiscardEnable = false,
+                }
+            )
+            .WithMultisampleState(
+                new MultisampleState
+                {
+                    RasterizationSamples = SampleCountFlags.Count1Bit,
+                    SampleShadingEnable = false,
+                }
+            )
+            .WithDepthStencilState(
+                new DepthStencilState
+                {
+                    DepthTestEnable = false,
+                    DepthWriteEnable = true,
+                    DepthCompareOp = CompareOp.Less,
+                    DepthBoundsTestEnable = false,
+                    StencilTestEnable = false,
+                }
+            )
+            .Build();
 
         _windowContext.Handle.Update += HandleOnUpdate;
         _windowContext.Handle.FramebufferResize += HandleOnFramebufferResize;

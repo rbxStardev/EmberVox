@@ -1,10 +1,114 @@
 using EmberVox.Core.Types;
+using EmberVox.Rendering.GraphicsPipeline;
+using EmberVox.Rendering.ShaderReflection;
+using Silk.NET.SPIRV.Reflect;
 using Silk.NET.Vulkan;
+using Format = Silk.NET.Vulkan.Format;
 
 namespace EmberVox.Rendering;
 
 public static class Initializers
 {
+    public static VertexInputAttributeDescription CreateVertexInputDescription(
+        uint binding,
+        Format format,
+        uint location,
+        uint offset
+    )
+    {
+        return new VertexInputAttributeDescription
+        {
+            Binding = binding,
+            Format = format,
+            Location = location,
+            Offset = offset,
+        };
+    }
+
+    public static VertexInputBindingDescription CreateVertexInputBindingDescription(
+        uint binding,
+        VertexInputRate vertexInputRate,
+        uint stride
+    )
+    {
+        return new VertexInputBindingDescription
+        {
+            Binding = binding,
+            InputRate = vertexInputRate,
+            Stride = stride,
+        };
+    }
+
+    public static unsafe PipelineShaderStageCreateInfo CreatePipelineShaderStageCreateInfo(
+        ShaderModule module,
+        byte* entryPoint,
+        ShaderStageFlags shaderStage
+    )
+    {
+        return new PipelineShaderStageCreateInfo
+        {
+            SType = StructureType.PipelineShaderStageCreateInfo,
+            Module = module,
+            PName = entryPoint,
+            Stage = shaderStage,
+        };
+    }
+
+    public static unsafe PipelineRenderingCreateInfo CreatePipelineRenderingInfo(
+        ManagedPointer<Format> formats,
+        Format depthAttachmentFormat
+    )
+    {
+        return new PipelineRenderingCreateInfo
+        {
+            SType = StructureType.PipelineRenderingCreateInfo,
+            ColorAttachmentCount = (uint)formats.Length,
+            PColorAttachmentFormats = formats.Pointer,
+            DepthAttachmentFormat = depthAttachmentFormat,
+        };
+    }
+
+    public static ManagedPointer<DescriptorSetLayoutBinding> CreateDescriptorSetLayoutBindings(
+        ReadOnlySpan<byte> vertexShaderCode,
+        ReadOnlySpan<byte> fragmentShaderCode
+    )
+    {
+        using Reflect reflect = Reflect.GetApi();
+        using ShaderReflector vertReflector = new ShaderReflector(reflect, vertexShaderCode);
+        using ShaderReflector fragReflector = new ShaderReflector(reflect, fragmentShaderCode);
+
+        List<DescriptorSetLayoutBinding> descriptorSetLayoutBindingList = [];
+        descriptorSetLayoutBindingList.AddRange(
+            vertReflector.DescriptorBindingsByName.Values.Select(
+                shaderBinding => new DescriptorSetLayoutBinding
+                {
+                    Binding = shaderBinding.BindingIndex,
+                    DescriptorType = shaderBinding.BindingType,
+                    DescriptorCount = 1,
+                    StageFlags = vertReflector.StageFlags,
+                }
+            )
+        );
+        descriptorSetLayoutBindingList.AddRange(
+            fragReflector.DescriptorBindingsByName.Values.Select(
+                shaderBinding => new DescriptorSetLayoutBinding
+                {
+                    Binding = shaderBinding.BindingIndex,
+                    DescriptorType = shaderBinding.BindingType,
+                    DescriptorCount = 1,
+                    StageFlags = fragReflector.StageFlags,
+                }
+            )
+        );
+
+        ManagedPointer<DescriptorSetLayoutBinding> result = new(
+            descriptorSetLayoutBindingList.Count
+        );
+        descriptorSetLayoutBindingList.CopyTo(result.Span);
+
+        return result;
+    }
+
     #region Graphics Pipeline
 
     public static unsafe PipelineDynamicStateCreateInfo CreateDynamicStateInfo(
@@ -20,8 +124,8 @@ public static class Initializers
     }
 
     public static unsafe PipelineVertexInputStateCreateInfo CreateVertexInputStateInfo(
-        ManagedPointer<VertexInputBindingDescription> bindingDescriptions,
-        ManagedPointer<VertexInputAttributeDescription> attributeDescriptions
+        ManagedPointer<VertexInputAttributeDescription> attributeDescriptions,
+        ManagedPointer<VertexInputBindingDescription> bindingDescriptions
     )
     {
         return new PipelineVertexInputStateCreateInfo
@@ -73,6 +177,26 @@ public static class Initializers
         };
     }
 
+    public static PipelineRasterizationStateCreateInfo CreateRasterizationStateInfo(
+        RasterizerState rasterizerState
+    )
+    {
+        return new PipelineRasterizationStateCreateInfo
+        {
+            SType = StructureType.PipelineRasterizationStateCreateInfo,
+            PolygonMode = rasterizerState.PolygonMode,
+            FrontFace = rasterizerState.FrontFace,
+            CullMode = rasterizerState.CullMode,
+            LineWidth = rasterizerState.LineWidth,
+            DepthClampEnable = rasterizerState.DepthClampEnable,
+            DepthBiasClamp = rasterizerState.DepthBiasClamp,
+            DepthBiasEnable = rasterizerState.DepthBiasEnable,
+            DepthBiasConstantFactor = rasterizerState.DepthBiasConstantFactor,
+            DepthBiasSlopeFactor = rasterizerState.DepthBiasSlopeFactor,
+            RasterizerDiscardEnable = rasterizerState.RasterizerDiscardEnable,
+        };
+    }
+
     public static PipelineMultisampleStateCreateInfo CreateMultisampleStateInfo()
     {
         return new PipelineMultisampleStateCreateInfo
@@ -80,6 +204,18 @@ public static class Initializers
             SType = StructureType.PipelineMultisampleStateCreateInfo,
             RasterizationSamples = SampleCountFlags.Count1Bit,
             SampleShadingEnable = Vk.False,
+        };
+    }
+
+    public static PipelineMultisampleStateCreateInfo CreateMultisampleStateInfo(
+        MultisampleState multisampleState
+    )
+    {
+        return new PipelineMultisampleStateCreateInfo
+        {
+            SType = StructureType.PipelineMultisampleStateCreateInfo,
+            RasterizationSamples = multisampleState.RasterizationSamples,
+            SampleShadingEnable = multisampleState.SampleShadingEnable,
         };
     }
 
@@ -107,6 +243,21 @@ public static class Initializers
             DepthCompareOp = CompareOp.Less,
             DepthBoundsTestEnable = Vk.False,
             StencilTestEnable = Vk.False,
+        };
+    }
+
+    public static PipelineDepthStencilStateCreateInfo CreateDepthStencilStateInfo(
+        DepthStencilState depthStencilState
+    )
+    {
+        return new PipelineDepthStencilStateCreateInfo
+        {
+            SType = StructureType.PipelineDepthStencilStateCreateInfo,
+            DepthTestEnable = depthStencilState.DepthTestEnable,
+            DepthWriteEnable = depthStencilState.DepthWriteEnable,
+            DepthCompareOp = depthStencilState.DepthCompareOp,
+            DepthBoundsTestEnable = depthStencilState.DepthBoundsTestEnable,
+            StencilTestEnable = depthStencilState.StencilTestEnable,
         };
     }
 

@@ -2,11 +2,6 @@ namespace EmberVox.Rendering.Utils;
 
 public static class FormatUtils
 {
-    public static uint GetVulkanFormatSize(Silk.NET.Vulkan.Format format)
-    {
-        throw new NotImplementedException();
-    }
-
     public static uint GetSpirvFormatSize(Silk.NET.SPIRV.Reflect.Format format) =>
         format switch
         {

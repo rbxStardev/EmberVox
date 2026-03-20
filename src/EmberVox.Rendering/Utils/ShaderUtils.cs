@@ -1,6 +1,7 @@
 using EmberVox.Core.Types;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.GraphicsPipeline;
+using EmberVox.Rendering.ShaderReflection;
 using Silk.NET.Vulkan;
 using DescriptorType = Silk.NET.SPIRV.Reflect.DescriptorType;
 
@@ -10,7 +11,7 @@ public static class ShaderUtils
 {
     public static unsafe ShaderModule LoadShaderModule(
         DeviceContext deviceContext,
-        byte[] shaderCode
+        Span<byte> shaderCode
     )
     {
         using ManagedPointer<byte> shaderCodeInfo = new(shaderCode.Length);
@@ -38,15 +39,4 @@ public static class ShaderUtils
 
         return shaderModule;
     }
-
-    public static ShaderBindingType ShaderBindingTypeFromDescriptorType(
-        DescriptorType descriptorType
-    ) =>
-        descriptorType switch
-        {
-            DescriptorType.UniformBuffer => ShaderBindingType.UniformBuffer,
-            DescriptorType.CombinedImageSampler => ShaderBindingType.CombinedImageSampler,
-            DescriptorType.StorageBuffer => ShaderBindingType.StorageBuffer,
-            _ => ShaderBindingType.Unknown,
-        };
 }
