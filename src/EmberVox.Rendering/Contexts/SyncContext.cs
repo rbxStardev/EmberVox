@@ -33,19 +33,19 @@ public sealed class SyncContext : IResource
 
     public void Dispose()
     {
-        foreach (Fence fence in InFlightFences)
+        foreach (var fence in InFlightFences)
             _deviceContext.Api.DestroyFence(
                 _deviceContext.LogicalDevice,
                 fence,
                 ReadOnlySpan<AllocationCallbacks>.Empty
             );
-        foreach (Semaphore semaphore in RenderFinishedSemaphores)
+        foreach (var semaphore in RenderFinishedSemaphores)
             _deviceContext.Api.DestroySemaphore(
                 _deviceContext.LogicalDevice,
                 semaphore,
                 ReadOnlySpan<AllocationCallbacks>.Empty
             );
-        foreach (Semaphore semaphore in PresentCompleteSemaphores)
+        foreach (var semaphore in PresentCompleteSemaphores)
             _deviceContext.Api.DestroySemaphore(
                 _deviceContext.LogicalDevice,
                 semaphore,

@@ -16,10 +16,8 @@ using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Windowing;
-using StbImageSharp;
 using Camera = EmberVox.Engine.Camera;
 using File = System.IO.File;
-using Material = EmberVox.Rendering.Types.Material;
 using Mesh = EmberVox.Rendering.Types.Mesh;
 
 namespace EmberVox.Sandbox;
@@ -157,45 +155,45 @@ public class DemoEngine : IDisposable
         #region Voxel
 
         //-> Gathering Model Vertices & Indices
-        List<Vertex> voxelVertices = [];
-        List<uint> voxelIndices = [];
-        int totalFaces = 0;
+           List<Vertex> voxelVertices = [];
+           List<uint> voxelIndices = [];
+           int totalFaces = 0;
 
-        foreach (VoxelFace voxelFace in Enum.GetValues<VoxelFace>())
-        {
-            voxelVertices.AddRange(
-                VoxelDataUtils.GetVoxelFaceVertices(voxelFace, new Vector3(0 + 2, 0, 0))
-            );
-            voxelIndices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
-            totalFaces++;
-        }
+           foreach (VoxelFace voxelFace in Enum.GetValues<VoxelFace>())
+           {
+               voxelVertices.AddRange(
+                   VoxelDataUtils.GetVoxelFaceVertices(voxelFace, new Vector3(0 + 2, 0, 0))
+               );
+               voxelIndices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
+               totalFaces++;
+           }
 
-        //-> Gathering Model Texture Data
-        FastNoiseLite noise = new FastNoiseLite();
-        noise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
-        noise.SetFrequency(0.05f);
+           //-> Gathering Model Texture Data
+           FastNoiseLite noise = new FastNoiseLite();
+           noise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+           noise.SetFrequency(0.05f);
 
-        //-> Creating Model Resources
-        TextureData voxelTextureData = TextureUtils.GetDataFromNoise(512, 512, noise);
+           //-> Creating Model Resources
+           TextureData voxelTextureData = TextureUtils.GetDataFromNoise(512, 512, noise);
 
-        Material voxelMaterial = new Material(
-            _renderer,
-            new Texture2D(_renderer.DeviceContext, _renderer.CommandContext, voxelTextureData)
-        );
-        _renderer.RegisterMaterial(voxelMaterial);
+           Material voxelMaterial = new Material(
+               _renderer,
+               new Texture2D(_renderer.DeviceContext, _renderer.CommandContext, voxelTextureData)
+           );
+           _renderer.RegisterMaterial(voxelMaterial);
 
-        MeshComponent voxelMesh = new()
-        {
-            Material = voxelMaterial,
-            Mesh = new Mesh(
-                _renderer.DeviceContext,
-                _renderer.CommandContext,
-                voxelVertices.ToArray(),
-                voxelIndices.ToArray()
-            ),
-        };
+           MeshComponent voxelMesh = new()
+           {
+               Material = voxelMaterial,
+               Mesh = new Mesh(
+                   _renderer.DeviceContext,
+                   _renderer.CommandContext,
+                   voxelVertices.ToArray(),
+                   voxelIndices.ToArray()
+               ),
+           };
 
-        _renderer.RegisterMesh(voxelMesh.Mesh, voxelMesh.Material);
+           _renderer.RegisterMesh(voxelMesh.Mesh, voxelMesh.Material);
 
         #endregion
         */
@@ -277,8 +275,8 @@ public class DemoEngine : IDisposable
         );
 
         Logger.Warning?.WriteLine("Initializing test graphics pipeline");
-        NewGraphicsPipeline newGraphicsPipeline = GraphicsPipelineBuilder
-            .Empty.ProvideDependencies(_renderer.DeviceContext)
+        var shaderMaterial = ShaderMaterialBuilder
+            .Empty.ProvideDependencies(_renderer.DeviceContext, _renderer.SwapChainContext)
             .WithVertexShaderCode(vertCode)
             .WithFragmentShaderCode(fragCode)
             .WithPrimitiveTopology(PrimitiveTopology.TriangleList)
@@ -345,6 +343,170 @@ public class DemoEngine : IDisposable
             )
             .Build();
 
+        //-> Gathering Model Vertices & Indices
+        List<Vertex> voxelVertices = [];
+        List<uint> voxelIndices = [];
+        int totalFaces = 0;
+
+        foreach (var voxelFace in Enum.GetValues<VoxelFace>())
+        {
+            voxelVertices.AddRange(
+                VoxelDataUtils.GetVoxelFaceVertices(voxelFace, new Vector3(0 + 2, 0, 0))
+            );
+            voxelIndices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
+            totalFaces++;
+        }
+
+        //-> Gathering Model Texture Data
+        var noise = new FastNoiseLite();
+        noise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+        noise.SetFrequency(0.05f);
+
+        //-> Creating Model Resources
+        var voxelTextureData = TextureUtils.GetDataFromNoise(512, 512, noise);
+
+        var texture2D = new Texture2D(
+            _renderer.DeviceContext,
+            _renderer.CommandContext,
+            voxelTextureData
+        );
+        _renderer.ResourceManager.SubmitResource(texture2D);
+        shaderMaterial.SetTexture(
+            texture2D.Sampler,
+            texture2D.ImageView,
+            ImageLayout.ShaderReadOnlyOptimal
+        );
+
+        MeshComponent voxelMesh = new()
+        {
+            ShaderMaterial = shaderMaterial,
+            Mesh = new Mesh(
+                _renderer.DeviceContext,
+                _renderer.CommandContext,
+                voxelVertices.ToArray(),
+                voxelIndices.ToArray()
+            ),
+        };
+
+        _renderer.RegisterShaderMaterial(shaderMaterial);
+        _renderer.RegisterMesh(voxelMesh.Mesh, voxelMesh.ShaderMaterial);
+
+        //-> Gathering Model Vertices & Indices
+        List<Vertex> texturedVoxelVertices = [];
+        List<uint> texturedVoxelIndices = [];
+        int texturedTotalFaces = 0;
+
+        foreach (var voxelFace in Enum.GetValues<VoxelFace>())
+        {
+            texturedVoxelVertices.AddRange(
+                VoxelDataUtils.GetVoxelFaceVertices(
+                    voxelFace,
+                    new Vector3(0, 0, 2),
+                    VoxelType.Grass,
+                    true
+                )
+            );
+            texturedVoxelIndices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(texturedTotalFaces));
+            texturedTotalFaces++;
+        }
+
+        //-> Creating Model Resources
+        var texturedVoxelMaterial = ShaderMaterialBuilder
+            .Empty.ProvideDependencies(_renderer.DeviceContext, _renderer.SwapChainContext)
+            .WithVertexShaderCode(vertCode)
+            .WithFragmentShaderCode(fragCode)
+            .WithPrimitiveTopology(PrimitiveTopology.TriangleList)
+            .WithTargetInfo(
+                new TargetInfo
+                {
+                    ColorTargetDescriptions =
+                    [
+                        new ColorTargetDescription
+                        {
+                            BlendState = new BlendState
+                            {
+                                ColorWriteMask =
+                                    ColorComponentFlags.RBit
+                                    | ColorComponentFlags.GBit
+                                    | ColorComponentFlags.BBit
+                                    | ColorComponentFlags.ABit,
+                                EnableBlend = true,
+                                SrcColorBlendFactor = BlendFactor.SrcAlpha,
+                                DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
+                                ColorBlendOp = BlendOp.Add,
+                                SrcAlphaBlendFactor = BlendFactor.One,
+                                DstAlphaBlendFactor = BlendFactor.Zero,
+                                AlphaBlendOp = BlendOp.Add,
+                            },
+                            Format = _renderer.SwapChainContext.SwapChainImageFormat,
+                        },
+                    ],
+                    DepthAttachmentFormat = _renderer.DepthContext.DepthImageFormat,
+                }
+            )
+            .WithInputRate(VertexInputRate.Vertex)
+            .WithRasterizerState(
+                new RasterizerState
+                {
+                    PolygonMode = PolygonMode.Fill,
+                    FrontFace = FrontFace.Clockwise,
+                    CullMode = CullModeFlags.BackBit,
+                    LineWidth = 1.0f,
+                    DepthClampEnable = false,
+                    DepthBiasClamp = 0.0f,
+                    DepthBiasEnable = false,
+                    DepthBiasConstantFactor = 0.0f,
+                    DepthBiasSlopeFactor = 1.0f,
+                    RasterizerDiscardEnable = false,
+                }
+            )
+            .WithMultisampleState(
+                new MultisampleState
+                {
+                    RasterizationSamples = SampleCountFlags.Count1Bit,
+                    SampleShadingEnable = false,
+                }
+            )
+            .WithDepthStencilState(
+                new DepthStencilState
+                {
+                    DepthTestEnable = false,
+                    DepthWriteEnable = true,
+                    DepthCompareOp = CompareOp.Less,
+                    DepthBoundsTestEnable = false,
+                    StencilTestEnable = false,
+                }
+            )
+            .Build();
+
+        var texture2D2 = new Texture2D(
+            _renderer.DeviceContext,
+            _renderer.CommandContext,
+            TextureUtils.GenDataFromImage(
+                Path.Combine(AppContext.BaseDirectory, "Textures", "atlas.png")
+            )
+        );
+        _renderer.ResourceManager.SubmitResource(texture2D2);
+        texturedVoxelMaterial.SetTexture(
+            texture2D2.Sampler,
+            texture2D2.ImageView,
+            ImageLayout.ShaderReadOnlyOptimal
+        );
+
+        MeshComponent texturedVoxelMesh = new()
+        {
+            ShaderMaterial = texturedVoxelMaterial,
+            Mesh = new Mesh(
+                _renderer.DeviceContext,
+                _renderer.CommandContext,
+                texturedVoxelVertices.ToArray(),
+                texturedVoxelIndices.ToArray()
+            ),
+        };
+
+        _renderer.RegisterShaderMaterial(texturedVoxelMaterial);
+        _renderer.RegisterMesh(texturedVoxelMesh.Mesh, texturedVoxelMesh.ShaderMaterial);
+
         _windowContext.Handle.Update += HandleOnUpdate;
         _windowContext.Handle.FramebufferResize += HandleOnFramebufferResize;
         _windowContext.Handle.Render += HandleOnRender;
@@ -356,6 +518,7 @@ public class DemoEngine : IDisposable
         _renderer.MainLoop();
     }
 
+    /*
     public unsafe List<(Mesh, Material)> LoadModel(string modelPath, string? texturePath = null)
     {
         Scene* scene = _assimp.ImportFile(
@@ -409,10 +572,11 @@ public class DemoEngine : IDisposable
 
         return parts;
     }
+    */
 
     private unsafe Mesh LoadMeshFromScene(Scene* scene, int meshIndex)
     {
-        Silk.NET.Assimp.Mesh* mesh = scene->MMeshes[meshIndex];
+        var mesh = scene->MMeshes[meshIndex];
 
         List<Vertex> vertices = [];
         List<uint> indices = [];
@@ -420,9 +584,9 @@ public class DemoEngine : IDisposable
         // Populate Vertices
         for (int vertexIndex = 0; vertexIndex < mesh->MNumVertices; vertexIndex++)
         {
-            Vector3 vertexPos = mesh->MVertices[vertexIndex];
-            Vector3 vertexUv = mesh->MTextureCoords[0][vertexIndex];
-            Vector4 vertexColor =
+            var vertexPos = mesh->MVertices[vertexIndex];
+            var vertexUv = mesh->MTextureCoords[0][vertexIndex];
+            var vertexColor =
                 mesh->MColors[0] != null ? mesh->MColors[0][vertexIndex] : Vector4.One;
 
             vertices.Add(
@@ -438,7 +602,7 @@ public class DemoEngine : IDisposable
         // Populate Indices
         for (int faceIndex = 0; faceIndex < mesh->MNumFaces; faceIndex++)
         {
-            Face face = mesh->MFaces[faceIndex];
+            var face = mesh->MFaces[faceIndex];
             for (int indexIndex = 0; indexIndex < face.MNumIndices; indexIndex++)
             {
                 indices.Add(face.MIndices[indexIndex]);
@@ -453,6 +617,7 @@ public class DemoEngine : IDisposable
         );
     }
 
+    /*
     private unsafe Material LoadMaterialFromScene(Scene* scene, int materialIndex)
     {
         Silk.NET.Assimp.Material* material = scene->MMaterials[materialIndex];
@@ -524,6 +689,7 @@ public class DemoEngine : IDisposable
         );
         return new Material(_renderer, materialTexture);
     }
+    */
 
     private void InputManagerOnKeyPressed(object? sender, Key key)
     {
@@ -547,7 +713,7 @@ public class DemoEngine : IDisposable
 
     private void HandleOnFramebufferResize(Vector2D<int> newSize)
     {
-        _renderer.WindowOnFramebufferResize(newSize);
+        _renderer.WindowOnFramebufferResize();
     }
 
     private void HandleOnUpdate(double deltaTime)

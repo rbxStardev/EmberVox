@@ -67,7 +67,7 @@ public sealed class SwapChainContext : IResource
 
     public void Dispose()
     {
-        foreach (ImageView imageView in SwapChainImageViews)
+        foreach (var imageView in SwapChainImageViews)
             _deviceContext.Api.DestroyImageView(
                 _deviceContext.LogicalDevice,
                 imageView,
@@ -86,13 +86,13 @@ public sealed class SwapChainContext : IResource
 
     public void RecreateSwapChain()
     {
-        SwapchainKHR oldSwapChain = SwapChainKhr;
+        var oldSwapChain = SwapChainKhr;
 
         _surfaceCapabilities = GetSurfaceCapabilities();
         SwapChainExtent = GetSwapChainExtent();
         SwapChainKhr = CreateSwapChain(oldSwapChain);
 
-        foreach (ImageView imageView in SwapChainImageViews)
+        foreach (var imageView in SwapChainImageViews)
             _deviceContext.Api.DestroyImageView(
                 _deviceContext.LogicalDevice,
                 imageView,
@@ -155,7 +155,7 @@ public sealed class SwapChainContext : IResource
                 _deviceContext.LogicalDevice,
                 &swapchainCreateInfo,
                 null,
-                out SwapchainKHR swapchainKhr
+                out var swapchainKhr
             ) != Result.Success
         )
             throw new Exception("Failed to create Swapchain");
@@ -168,7 +168,7 @@ public sealed class SwapChainContext : IResource
         _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfaceCapabilities(
             _deviceContext.PhysicalDevice,
             _surfaceContext.SurfaceKhr,
-            out SurfaceCapabilitiesKHR surfaceCapabilities
+            out var surfaceCapabilities
         );
 
         return surfaceCapabilities;
@@ -184,7 +184,7 @@ public sealed class SwapChainContext : IResource
             Span<SurfaceFormatKHR>.Empty
         );
 
-        SurfaceFormatKHR[] formats = new SurfaceFormatKHR[count[0]];
+        var formats = new SurfaceFormatKHR[count[0]];
         _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfaceFormats(
             _deviceContext.PhysicalDevice,
             _surfaceContext.SurfaceKhr,
@@ -192,7 +192,7 @@ public sealed class SwapChainContext : IResource
             formats.AsSpan()
         );
 
-        foreach (SurfaceFormatKHR format in formats)
+        foreach (var format in formats)
         {
             if (
                 format is
@@ -214,7 +214,7 @@ public sealed class SwapChainContext : IResource
             Span<PresentModeKHR>.Empty
         );
 
-        PresentModeKHR[] presentModes = new PresentModeKHR[count[0]];
+        var presentModes = new PresentModeKHR[count[0]];
         _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfacePresentModes(
             _deviceContext.PhysicalDevice,
             _surfaceContext.SurfaceKhr,
@@ -222,7 +222,7 @@ public sealed class SwapChainContext : IResource
             presentModes.AsSpan()
         );
 
-        foreach (PresentModeKHR presentMode in presentModes)
+        foreach (var presentMode in presentModes)
         {
             if (presentMode is PresentModeKHR.MailboxKhr)
                 return presentMode;
@@ -265,7 +265,7 @@ public sealed class SwapChainContext : IResource
             Span<Image>.Empty
         );
 
-        Image[] images = new Image[count[0]];
+        var images = new Image[count[0]];
         KhrSwapChainExtension.GetSwapchainImages(
             _deviceContext.LogicalDevice,
             SwapChainKhr,
@@ -276,9 +276,9 @@ public sealed class SwapChainContext : IResource
         return images;
     }
 
-    private unsafe ImageView[] CreateSwapChainImageViews()
+    private ImageView[] CreateSwapChainImageViews()
     {
-        ImageView[] imageViews = new ImageView[SwapChainImages.Length];
+        var imageViews = new ImageView[SwapChainImages.Length];
 
         ImageViewCreateInfo createInfo = new()
         {

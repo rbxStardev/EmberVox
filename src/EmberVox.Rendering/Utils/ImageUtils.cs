@@ -3,7 +3,7 @@ using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Utils;
 
-internal class ImageUtils
+internal static class ImageUtils
 {
     public static Image CreateImage(
         Vk vk,
@@ -85,7 +85,7 @@ internal class ImageUtils
         uint mipLevels
     )
     {
-        FormatProperties formatProperties = vk.GetPhysicalDeviceFormatProperties(
+        var formatProperties = vk.GetPhysicalDeviceFormatProperties(
             deviceContext.PhysicalDevice,
             imageFormat
         );
@@ -100,9 +100,9 @@ internal class ImageUtils
             throw new Exception("Texture image format does not support linear blitting!");
         }
 
-        CommandBuffer commandBuffer = commandContext.BeginSingleTimeCommands();
+        var commandBuffer = commandContext.BeginSingleTimeCommands();
 
-        ImageMemoryBarrier barrier = new ImageMemoryBarrier(
+        var barrier = new ImageMemoryBarrier(
             StructureType.ImageMemoryBarrier,
             null,
             AccessFlags.TransferWriteBit,
@@ -139,8 +139,8 @@ internal class ImageUtils
                 new ReadOnlySpan<ImageMemoryBarrier>(ref barrier)
             );
 
-            ImageBlit.SrcOffsetsBuffer offsets = new ImageBlit.SrcOffsetsBuffer();
-            ImageBlit.DstOffsetsBuffer dstOffsets = new ImageBlit.DstOffsetsBuffer();
+            var offsets = new ImageBlit.SrcOffsetsBuffer();
+            var dstOffsets = new ImageBlit.DstOffsetsBuffer();
             offsets[0] = new Offset3D(0, 0, 0);
             offsets[1] = new Offset3D((int)mipWidth, (int)mipHeight, 1);
             dstOffsets[0] = new Offset3D(0, 0, 0);
@@ -150,14 +150,13 @@ internal class ImageUtils
                 1
             );
 
-            ImageBlit blit = new ImageBlit() { SrcOffsets = offsets, DstOffsets = dstOffsets };
-            blit.SrcSubresource = new ImageSubresourceLayers(
-                ImageAspectFlags.ColorBit,
-                i - 1,
-                0,
-                1
-            );
-            blit.DstSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, i, 0, 1);
+            var blit = new ImageBlit
+            {
+                SrcOffsets = offsets,
+                DstOffsets = dstOffsets,
+                SrcSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, i - 1, 0, 1),
+                DstSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, i, 0, 1),
+            };
 
             vk.CmdBlitImage(
                 commandBuffer,

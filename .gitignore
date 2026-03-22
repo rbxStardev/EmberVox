@@ -3,3 +3,12 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+*.bkp
+
+*.drawio
+
+*.cap
+
+src/error.log
+
+src/project-diagram-20-03-2026.png

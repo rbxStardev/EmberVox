@@ -9,7 +9,7 @@ public static class TextureUtils
     public static TextureData GenDataFromImage(string imagePath)
     {
         StbImage.stbi_set_flip_vertically_on_load(1);
-        ImageResult imageResult = ImageResult.FromStream(
+        var imageResult = ImageResult.FromStream(
             File.OpenRead(imagePath),
             ColorComponents.RedGreenBlueAlpha
         );

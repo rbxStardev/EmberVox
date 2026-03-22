@@ -34,12 +34,12 @@ public sealed class DeviceContext : IResource
         );
 
         LogicalDevice = CreateLogicalDevice(graphicsQueueIndex, presentQueueIndex);
-        GraphicsQueue = new QueueFamily()
+        GraphicsQueue = new QueueFamily
         {
             Index = graphicsQueueIndex,
             Queue = Api.GetDeviceQueue(LogicalDevice, graphicsQueueIndex, 0),
         };
-        PresentQueue = new QueueFamily()
+        PresentQueue = new QueueFamily
         {
             Index = presentQueueIndex,
             Queue = Api.GetDeviceQueue(LogicalDevice, presentQueueIndex, 0),
@@ -103,7 +103,7 @@ public sealed class DeviceContext : IResource
         FormatFeatureFlags formatFeatures
     )
     {
-        foreach (Format format in candidates)
+        foreach (var format in candidates)
         {
             FormatProperties properties = default;
             Api.GetPhysicalDeviceFormatProperties(
@@ -134,17 +134,17 @@ public sealed class DeviceContext : IResource
 
     private unsafe PhysicalDevice PickPhysicalDevice()
     {
-        IReadOnlyCollection<PhysicalDevice>? devices = Api.GetPhysicalDevices(_instance);
+        var devices = Api.GetPhysicalDevices(_instance);
         if (devices.Count == 0)
             throw new Exception("Failed to find GPUs with Vulkan support!");
 
         Logger.Info?.WriteLine("Checking for suitable physical devices...");
-        foreach (PhysicalDevice device in devices)
+        foreach (var device in devices)
         {
             if (!IsPhysicalDeviceSuitable(device))
                 continue;
 
-            Api.GetPhysicalDeviceProperties(device, out PhysicalDeviceProperties properties);
+            Api.GetPhysicalDeviceProperties(device, out var properties);
             Logger.Info?.WriteLine("Found suitable physical device, listing properties...");
             Logger.Metric?.WriteLine(
                 $"-> Device Name: {SilkMarshal.PtrToString((nint)properties.DeviceName)}"
@@ -173,7 +173,7 @@ public sealed class DeviceContext : IResource
             Span<QueueFamilyProperties>.Empty
         );
 
-        QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount[0]];
+        var queueFamilies = new QueueFamilyProperties[queueFamilyCount[0]];
         Api.GetPhysicalDeviceQueueFamilyProperties(
             device,
             queueFamilyCount,
@@ -193,7 +193,7 @@ public sealed class DeviceContext : IResource
             Span<ExtensionProperties>.Empty
         );
 
-        ExtensionProperties[] extensions = new ExtensionProperties[extensionCount[0]];
+        var extensions = new ExtensionProperties[extensionCount[0]];
         Api.EnumerateDeviceExtensionProperties(
             device,
             ReadOnlySpan<byte>.Empty,
@@ -208,7 +208,7 @@ public sealed class DeviceContext : IResource
         );
         Logger.Metric?.WriteLine("Physical device extensions are valid (Passed)");
 
-        PhysicalDeviceFeatures supportedFeatures = Api.GetPhysicalDeviceFeatures(device);
+        var supportedFeatures = Api.GetPhysicalDeviceFeatures(device);
 
         return hasVersion
             && hasGraphicsQueue
@@ -225,7 +225,7 @@ public sealed class DeviceContext : IResource
             Span<QueueFamilyProperties>.Empty
         );
 
-        QueueFamilyProperties[] queueFamilies = new QueueFamilyProperties[queueFamilyCount[0]];
+        var queueFamilies = new QueueFamilyProperties[queueFamilyCount[0]];
         Api.GetPhysicalDeviceQueueFamilyProperties(
             device,
             queueFamilyCount,
@@ -287,7 +287,7 @@ public sealed class DeviceContext : IResource
         PhysicalDeviceFeatures2 deviceFeatures2 = new()
         {
             SType = StructureType.PhysicalDeviceFeatures2,
-            Features = new PhysicalDeviceFeatures() { SamplerAnisotropy = true },
+            Features = new PhysicalDeviceFeatures { SamplerAnisotropy = true },
             PNext = &vulkan13Features,
         };
 
@@ -301,11 +301,11 @@ public sealed class DeviceContext : IResource
 
         HashSet<uint> uniqueIndices = [graphicsIndex, presentIndex];
         uint[] indices = uniqueIndices.ToArray();
-        DeviceQueueCreateInfo[] queueCreateInfoArray = new DeviceQueueCreateInfo[indices.Length];
+        var queueCreateInfoArray = new DeviceQueueCreateInfo[indices.Length];
 
         for (int i = 0; i < indices.Length; i++)
         {
-            queueCreateInfoArray[i] = new DeviceQueueCreateInfo()
+            queueCreateInfoArray[i] = new DeviceQueueCreateInfo
             {
                 SType = StructureType.DeviceQueueCreateInfo,
                 QueueFamilyIndex = indices[i],
@@ -324,10 +324,14 @@ public sealed class DeviceContext : IResource
         deviceCreateInfo.QueueCreateInfoCount = (uint)queueCreateInfo.Length;
         deviceCreateInfo.PQueueCreateInfos = queueCreateInfo.Pointer;
 
-        Device logicalDevice;
+        Device logicalDevice = default;
         if (
-            Api.CreateDevice(PhysicalDevice, &deviceCreateInfo, null, out logicalDevice)
-            != Result.Success
+            Api.CreateDevice(
+                PhysicalDevice,
+                new ReadOnlySpan<DeviceCreateInfo>(ref deviceCreateInfo),
+                ReadOnlySpan<AllocationCallbacks>.Empty,
+                new Span<Device>(ref logicalDevice)
+            ) != Result.Success
         )
             throw new Exception("Failed to create logical device");
         //}

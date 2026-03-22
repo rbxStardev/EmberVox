@@ -4,8 +4,6 @@ public sealed class ResourceManager : IDisposable
 {
     private readonly Stack<WeakReference<IResource>> _resources = [];
 
-    public ResourceManager() { }
-
     public void SubmitResource(IResource resource)
     {
         WeakReference<IResource> resourceReference = new(resource);

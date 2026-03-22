@@ -84,7 +84,7 @@ public static class VoxelDataUtils
         bool includeUv = false
     )
     {
-        Vector2[] uvs = VoxelTextureUtils.GetUVs(type, face, includeUv);
+        var uvs = VoxelTextureUtils.GetUVs(type, face, includeUv);
 
         return VoxelRawFaceData[face]
             .Select(

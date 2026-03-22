@@ -30,7 +30,7 @@ public class Texture2D : IRenderable
         _mipLevels =
             (uint)Math.Floor(Math.Log2(Math.Max(textureData.Width, textureData.Height))) + 1;
 
-        BufferContext stagingBuffer = new BufferContext(
+        var stagingBuffer = new BufferContext(
             _deviceContext,
             textureStride,
             BufferUsageFlags.TransferSrcBit
@@ -132,15 +132,15 @@ public class Texture2D : IRenderable
     // TODO - Move creation outside texture class
     private Sampler CreateTextureSampler()
     {
-        PhysicalDeviceProperties properties = _deviceContext.Api.GetPhysicalDeviceProperties(
+        var properties = _deviceContext.Api.GetPhysicalDeviceProperties(
             _deviceContext.PhysicalDevice
         );
         SamplerCreateInfo samplerInfo = new()
         {
             SType = StructureType.SamplerCreateInfo,
-            MagFilter = Filter.Linear,
-            MinFilter = Filter.Linear,
-            MipmapMode = SamplerMipmapMode.Linear,
+            MagFilter = Filter.Nearest,
+            MinFilter = Filter.Nearest,
+            MipmapMode = SamplerMipmapMode.Nearest,
             AddressModeU = SamplerAddressMode.Repeat,
             AddressModeV = SamplerAddressMode.Repeat,
             AddressModeW = SamplerAddressMode.Repeat,

@@ -14,7 +14,7 @@ internal static class VoxelTextureUtils
 
     private static Vector2[] GetAtlasUVs(int column, int row)
     {
-        float size = 1.0f / AtlasSize;
+        const float size = 1.0f / AtlasSize;
 
         float u = column * size;
         float v = 1.0f - (row + 1) * size;
@@ -42,7 +42,7 @@ internal static class VoxelTextureUtils
     {
         {
             VoxelType.Grass,
-            new Dictionary<VoxelFace, Vector2[]>()
+            new Dictionary<VoxelFace, Vector2[]>
             {
                 { VoxelFace.Top, GetAtlasUVs(7, 2) },
                 { VoxelFace.Bottom, GetAtlasUVs(2, 0) },

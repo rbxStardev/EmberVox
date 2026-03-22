@@ -47,7 +47,7 @@ public sealed class CommandContext : IResource
         int currentFrame
     )
     {
-        CommandBuffer commandBuffer = CommandBuffers[currentFrame];
+        var commandBuffer = CommandBuffers[currentFrame];
 
         CommandBufferBeginInfo beginInfo = new() { SType = StructureType.CommandBufferBeginInfo };
         var beginResult = _deviceContext.Api.BeginCommandBuffer(
@@ -89,7 +89,7 @@ public sealed class CommandContext : IResource
             ClearValue = clearColor,
         };
 
-        ClearValue clearDepth = new ClearValue(null, new ClearDepthStencilValue(1.0f, 0));
+        var clearDepth = new ClearValue(null, new ClearDepthStencilValue(1.0f, 0));
         RenderingAttachmentInfo depthAttachmentInfo = new()
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -103,7 +103,7 @@ public sealed class CommandContext : IResource
         RenderingInfo renderingInfo = new()
         {
             SType = StructureType.RenderingInfo,
-            RenderArea = new Rect2D()
+            RenderArea = new Rect2D
             {
                 Offset = new Offset2D(0, 0),
                 Extent = _swapChainContext.SwapChainExtent,
@@ -139,7 +139,7 @@ public sealed class CommandContext : IResource
 
     public void EndCommandBufferRecording(uint imageIndex, int currentFrame)
     {
-        CommandBuffer commandBuffer = CommandBuffers[currentFrame];
+        var commandBuffer = CommandBuffers[currentFrame];
 
         _deviceContext.Api.CmdEndRendering(commandBuffer);
 
@@ -211,7 +211,7 @@ public sealed class CommandContext : IResource
         ulong size
     )
     {
-        CommandBuffer commandBuffer = BeginSingleTimeCommands();
+        var commandBuffer = BeginSingleTimeCommands();
 
         BufferCopy copy = new() { Size = size };
         _deviceContext.Api.CmdCopyBuffer(
@@ -226,7 +226,7 @@ public sealed class CommandContext : IResource
 
     public void CopyBufferToImage(BufferContext bufferContext, Image image, uint width, uint height)
     {
-        CommandBuffer commandBuffer = BeginSingleTimeCommands();
+        var commandBuffer = BeginSingleTimeCommands();
 
         BufferImageCopy region = new()
         {
@@ -324,7 +324,7 @@ public sealed class CommandContext : IResource
             SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
             DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
             Image = image,
-            SubresourceRange = new ImageSubresourceRange()
+            SubresourceRange = new ImageSubresourceRange
             {
                 AspectMask = imageAspectFlags,
                 BaseMipLevel = 0,
@@ -354,7 +354,7 @@ public sealed class CommandContext : IResource
         ImageLayout newLayout
     )
     {
-        CommandBuffer commandBuffer = BeginSingleTimeCommands();
+        var commandBuffer = BeginSingleTimeCommands();
 
         ImageMemoryBarrier barrier = new()
         {

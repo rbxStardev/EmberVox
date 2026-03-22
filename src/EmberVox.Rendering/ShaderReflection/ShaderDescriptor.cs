@@ -2,16 +2,17 @@ using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.ShaderReflection;
 
-public struct ShaderBindings
+public struct ShaderDescriptor
 {
     public uint BindingIndex;
+    public uint SetIndex;
     public uint Stride;
     public uint Offset;
-    public uint SetIndex;
     public DescriptorType BindingType;
+    public string Name;
 
     public override string ToString()
     {
-        return $"[{BindingType}] binding={BindingIndex} set={SetIndex} offset={Offset} size={Stride}";
+        return $"[{BindingType}] {Name}: binding={BindingIndex}, set={SetIndex}, stride={Stride}, offset={Offset},";
     }
 }

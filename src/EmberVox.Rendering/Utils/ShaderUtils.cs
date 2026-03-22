@@ -1,9 +1,6 @@
 using EmberVox.Core.Types;
 using EmberVox.Rendering.Contexts;
-using EmberVox.Rendering.GraphicsPipeline;
-using EmberVox.Rendering.ShaderReflection;
 using Silk.NET.Vulkan;
-using DescriptorType = Silk.NET.SPIRV.Reflect.DescriptorType;
 
 namespace EmberVox.Rendering.Utils;
 

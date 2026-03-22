@@ -5,24 +5,24 @@ using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.ShaderReflection;
 using EmberVox.Rendering.Utils;
 using Silk.NET.Core.Native;
-using Silk.NET.SPIRV.Reflect;
 using Silk.NET.Vulkan;
 using Format = Silk.NET.Vulkan.Format;
 using Result = Silk.NET.Vulkan.Result;
 
 namespace EmberVox.Rendering.GraphicsPipeline;
 
-public class NewGraphicsPipeline
+public class NewGraphicsPipeline : IDisposable
 {
     public PipelineLayout PipelineLayout { get; }
     public Pipeline Pipeline { get; }
 
-    private DeviceContext _deviceContext;
+    private readonly DeviceContext _deviceContext;
 
     public unsafe NewGraphicsPipeline(
         DeviceContext deviceContext,
-        ReadOnlySpan<byte> vertexShaderCode,
-        ReadOnlySpan<byte> fragmentShaderCode,
+        ShaderReflector vertexReflector,
+        ShaderReflector fragmentReflector,
+        DescriptorSetLayout descriptorSetLayout,
         PrimitiveTopology primitiveTopology,
         TargetInfo targetInfo,
         VertexInputRate inputRate,
@@ -35,37 +35,17 @@ public class NewGraphicsPipeline
 
         Logger.Info?.WriteLine("-----> Creating GraphicsPipeline... <-----");
 
-        using Reflect reflect = Reflect.GetApi();
-        using ShaderReflector vertReflector = new ShaderReflector(reflect, vertexShaderCode);
-        vertReflector.Dump();
-        using ShaderReflector fragReflector = new ShaderReflector(reflect, fragmentShaderCode);
-        fragReflector.Dump();
-
-        ShaderReflector[] reflectors = [vertReflector, fragReflector];
-
-        using ManagedPointer<DescriptorSetLayoutBinding> descriptorSetLayoutBindings =
-            Initializers.CreateDescriptorSetLayoutBindings(vertexShaderCode, fragmentShaderCode);
-        DescriptorSetLayout descriptorSetLayout = CreateDescriptorSetLayout(
-            deviceContext,
-            descriptorSetLayoutBindings
-        );
-
-        Logger.Metric?.WriteLine(
-            $"-> Descriptor bindings reflected: {descriptorSetLayoutBindings.Length}"
-        );
+        ShaderReflector[] reflectors = [vertexReflector, fragmentReflector];
 
         PipelineLayout = CreatePipelineLayout(deviceContext, descriptorSetLayout);
 
-        ShaderVariable[] vertShaderInputs = vertReflector.InputVariablesByName.Values.ToArray();
-        Logger.Metric?.WriteLine(
-            $"-> Vertex inputs: {vertShaderInputs.Length} | Descriptor bindings: {descriptorSetLayoutBindings.Length}"
-        );
+        var vertShaderInputs = vertexReflector.GetInputVariables().ToArray();
+        Logger.Metric?.WriteLine($"-> Vertex inputs: {vertShaderInputs.Length}");
 
         Span<ShaderModule> modules = stackalloc ShaderModule[reflectors.Length];
 
-        using ManagedPointer<PipelineColorBlendAttachmentState> attachmentStates =
-            SetupAttachmentStates(targetInfo.ColorTargetDescriptions);
-        using ManagedPointer<Format> formats = GetFormats(targetInfo.ColorTargetDescriptions);
+        using var attachmentStates = SetupAttachmentStates(targetInfo.ColorTargetDescriptions);
+        using var formats = GetFormats(targetInfo.ColorTargetDescriptions);
 
         using ManagedPointer<PipelineShaderStageCreateInfo> createInfos = new(reflectors.Length);
         using ManagedPointer<VertexInputAttributeDescription> attributeDescriptions = new(
@@ -80,7 +60,7 @@ public class NewGraphicsPipeline
         uint totalStride = 0;
         for (int i = 0; i < vertShaderInputs.Length; i++)
         {
-            ShaderVariable current = vertShaderInputs[i];
+            var current = vertShaderInputs[i];
 
             if (
                 current.Format == (uint)Format.Undefined
@@ -114,9 +94,9 @@ public class NewGraphicsPipeline
 
         for (int i = 0; i < reflectors.Length; i++)
         {
-            ShaderReflector reflector = reflectors[i];
+            var reflector = reflectors[i];
             Logger.Info?.WriteLine($"Loading shader stage: {reflector.StageFlags}");
-            Logger.Metric?.WriteLine($"-> Entry point: {new string((sbyte*)reflector.EntryPoint)}");
+            Logger.Metric?.WriteLine($"-> Entry point: {reflector.EntryPoint}");
             modules[i] = ShaderUtils.LoadShaderModule(deviceContext, reflector.CompiledShaderCode);
             createInfos[i] = Initializers.CreatePipelineShaderStageCreateInfo(
                 modules[i],
@@ -125,26 +105,21 @@ public class NewGraphicsPipeline
             );
         }
 
-        PipelineRenderingCreateInfo renderingInfo = Initializers.CreatePipelineRenderingInfo(
+        var renderingInfo = Initializers.CreatePipelineRenderingInfo(
             formats,
             targetInfo.DepthAttachmentFormat
         );
-        PipelineVertexInputStateCreateInfo vertexInputStateInfo =
-            Initializers.CreateVertexInputStateInfo(attributeDescriptions, bindingDescriptions);
-        PipelineInputAssemblyStateCreateInfo inputAssemblyStateInfo =
-            Initializers.CreateInputAssemblyStateInfo(primitiveTopology);
-        PipelineViewportStateCreateInfo viewportStateInfo = Initializers.CreateViewportStateInfo();
-        PipelineRasterizationStateCreateInfo rasterizationStateInfo =
-            Initializers.CreateRasterizationStateInfo(rasterizerState);
-        PipelineMultisampleStateCreateInfo multisampleStateInfo =
-            Initializers.CreateMultisampleStateInfo(multisampleState);
-        PipelineColorBlendStateCreateInfo colorBlendStateInfo =
-            Initializers.CreateColorBlendStateInfo(attachmentStates);
-        PipelineDepthStencilStateCreateInfo depthStencilStateInfo =
-            Initializers.CreateDepthStencilStateInfo(depthStencilState);
-        PipelineDynamicStateCreateInfo dynamicStateInfo = Initializers.CreateDynamicStateInfo(
-            dynamicStates
+        var vertexInputStateInfo = Initializers.CreateVertexInputStateInfo(
+            attributeDescriptions,
+            bindingDescriptions
         );
+        var inputAssemblyStateInfo = Initializers.CreateInputAssemblyStateInfo(primitiveTopology);
+        var viewportStateInfo = Initializers.CreateViewportStateInfo();
+        var rasterizationStateInfo = Initializers.CreateRasterizationStateInfo(rasterizerState);
+        var multisampleStateInfo = Initializers.CreateMultisampleStateInfo(multisampleState);
+        var colorBlendStateInfo = Initializers.CreateColorBlendStateInfo(attachmentStates);
+        var depthStencilStateInfo = Initializers.CreateDepthStencilStateInfo(depthStencilState);
+        var dynamicStateInfo = Initializers.CreateDynamicStateInfo(dynamicStates);
         try
         {
             GraphicsPipelineCreateInfo pipelineInfo = new()
@@ -184,7 +159,12 @@ public class NewGraphicsPipeline
         }
         finally
         {
-            foreach (ShaderModule module in modules)
+            foreach (var info in createInfos)
+            {
+                SilkMarshal.Free((nint)info.PName);
+            }
+
+            foreach (var module in modules)
             {
                 _deviceContext.Api.DestroyShaderModule(
                     _deviceContext.LogicalDevice,
@@ -203,10 +183,9 @@ public class NewGraphicsPipeline
     {
         int ptr = 0;
         ManagedPointer<PipelineColorBlendAttachmentState> result = new(targets.Length);
-        foreach (ColorTargetDescription desc in targets)
+        foreach (var blendState in targets.Select(desc => desc.BlendState))
         {
-            BlendState blendState = desc.BlendState;
-            result[ptr++] = new PipelineColorBlendAttachmentState()
+            result[ptr++] = new PipelineColorBlendAttachmentState
             {
                 ColorWriteMask = blendState.ColorWriteMask,
                 BlendEnable = blendState.EnableBlend,
@@ -231,35 +210,6 @@ public class NewGraphicsPipeline
         }
 
         return result;
-    }
-
-    private static unsafe DescriptorSetLayout CreateDescriptorSetLayout(
-        DeviceContext deviceContext,
-        ManagedPointer<DescriptorSetLayoutBinding> descriptorSetLayoutBindings
-    )
-    {
-        DescriptorSetLayoutCreateInfo layoutInfo = new()
-        {
-            SType = StructureType.DescriptorSetLayoutCreateInfo,
-            BindingCount = (uint)descriptorSetLayoutBindings.Length,
-            PBindings = descriptorSetLayoutBindings.Pointer,
-        };
-
-        DescriptorSetLayout descriptorSetLayout = default;
-        if (
-            deviceContext.Api.CreateDescriptorSetLayout(
-                deviceContext.LogicalDevice,
-                new ReadOnlySpan<DescriptorSetLayoutCreateInfo>(ref layoutInfo),
-                ReadOnlySpan<AllocationCallbacks>.Empty,
-                new Span<DescriptorSetLayout>(ref descriptorSetLayout)
-            ) != Result.Success
-        )
-        {
-            Logger.Error?.WriteLine("Failed to create descriptor set layout.");
-            throw new Exception("Failed to create descriptor set layout.");
-        }
-
-        return descriptorSetLayout;
     }
 
     private static unsafe PipelineLayout CreatePipelineLayout(
@@ -290,5 +240,19 @@ public class NewGraphicsPipeline
         }
 
         return pipelineLayout;
+    }
+
+    public void Dispose()
+    {
+        _deviceContext.Api.DestroyPipelineLayout(
+            _deviceContext.LogicalDevice,
+            PipelineLayout,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+        _deviceContext.Api.DestroyPipeline(
+            _deviceContext.LogicalDevice,
+            Pipeline,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
     }
 }

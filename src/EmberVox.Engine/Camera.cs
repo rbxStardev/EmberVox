@@ -19,7 +19,7 @@ public class Camera
     private Vector3 Up => Vector3.Transform(Vector3.UnitY, TransformComponent.Rotation);
 
     private float _yaw = -90.0f;
-    private float _pitch = 0.0f;
+    private float _pitch;
     private bool _firstMouseMove = true;
     private Vector2 _lastMousePosition = Vector2.Zero;
 
@@ -34,11 +34,11 @@ public class Camera
     public void Update(double deltaTime)
     {
         float flyDirection = InputManager.GetInputKeysAxis(Key.ControlLeft, Key.Space);
-        Vector2 movementDirection = InputManager.GetInputKeysVector(Key.A, Key.D, Key.S, Key.W);
+        var movementDirection = InputManager.GetInputKeysVector(Key.A, Key.D, Key.S, Key.W);
 
         var flatFront = Vector3.Normalize(Front with { Y = 0.0f });
 
-        Vector3 velocity = Vector3.Zero;
+        var velocity = Vector3.Zero;
         velocity += flatFront * movementDirection.Y;
         velocity += Right * movementDirection.X;
         velocity += Vector3.UnitY * flyDirection;
@@ -110,7 +110,7 @@ public class Camera
             _firstMouseMove = false;
         }
 
-        Vector2 offset = _lastMousePosition - position;
+        var offset = _lastMousePosition - position;
         _lastMousePosition = position;
 
         ProcessMouseMove(offset);

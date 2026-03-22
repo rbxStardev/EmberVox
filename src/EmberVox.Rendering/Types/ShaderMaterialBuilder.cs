@@ -1,11 +1,13 @@
 using EmberVox.Rendering.Contexts;
+using EmberVox.Rendering.GraphicsPipeline;
 using Silk.NET.Vulkan;
 
-namespace EmberVox.Rendering.GraphicsPipeline;
+namespace EmberVox.Rendering.Types;
 
-public class GraphicsPipelineBuilder
+public class ShaderMaterialBuilder
 {
     private DeviceContext _deviceContext = null!;
+    private SwapChainContext _swapChainContext = null!;
     private byte[] _vertexShaderCode = null!;
     private byte[] _fragmentShaderCode = null!;
     private PrimitiveTopology _primitiveTopology;
@@ -15,77 +17,82 @@ public class GraphicsPipelineBuilder
     private MultisampleState _multisampleState;
     private DepthStencilState _depthStencilState;
 
-    private GraphicsPipelineBuilder() { }
+    private ShaderMaterialBuilder() { }
 
-    public static GraphicsPipelineBuilder Empty => new();
+    public static ShaderMaterialBuilder Empty => new();
 
-    public GraphicsPipelineBuilder ProvideDependencies(DeviceContext deviceContext)
+    public ShaderMaterialBuilder ProvideDependencies(
+        DeviceContext deviceContext,
+        SwapChainContext swapChainContext
+    )
     {
         _deviceContext = deviceContext;
+        _swapChainContext = swapChainContext;
 
         return this;
     }
 
-    public GraphicsPipelineBuilder WithVertexShaderCode(ReadOnlySpan<byte> vertexShaderCode)
+    public ShaderMaterialBuilder WithVertexShaderCode(ReadOnlySpan<byte> vertexShaderCode)
     {
         _vertexShaderCode = vertexShaderCode.ToArray();
 
         return this;
     }
 
-    public GraphicsPipelineBuilder WithFragmentShaderCode(ReadOnlySpan<byte> fragmentShaderCode)
+    public ShaderMaterialBuilder WithFragmentShaderCode(ReadOnlySpan<byte> fragmentShaderCode)
     {
         _fragmentShaderCode = fragmentShaderCode.ToArray();
 
         return this;
     }
 
-    public GraphicsPipelineBuilder WithPrimitiveTopology(PrimitiveTopology primitiveTopology)
+    public ShaderMaterialBuilder WithPrimitiveTopology(PrimitiveTopology primitiveTopology)
     {
         _primitiveTopology = primitiveTopology;
 
         return this;
     }
 
-    public GraphicsPipelineBuilder WithTargetInfo(TargetInfo targetInfo)
+    public ShaderMaterialBuilder WithTargetInfo(TargetInfo targetInfo)
     {
         _targetInfo = targetInfo;
 
         return this;
     }
 
-    public GraphicsPipelineBuilder WithInputRate(VertexInputRate inputRate)
+    public ShaderMaterialBuilder WithInputRate(VertexInputRate inputRate)
     {
         _inputRate = inputRate;
 
         return this;
     }
 
-    public GraphicsPipelineBuilder WithRasterizerState(RasterizerState rasterizerState)
+    public ShaderMaterialBuilder WithRasterizerState(RasterizerState rasterizerState)
     {
         _rasterizerState = rasterizerState;
 
         return this;
     }
 
-    public GraphicsPipelineBuilder WithMultisampleState(MultisampleState multisampleState)
+    public ShaderMaterialBuilder WithMultisampleState(MultisampleState multisampleState)
     {
         _multisampleState = multisampleState;
 
         return this;
     }
 
-    public GraphicsPipelineBuilder WithDepthStencilState(DepthStencilState depthStencilState)
+    public ShaderMaterialBuilder WithDepthStencilState(DepthStencilState depthStencilState)
     {
         _depthStencilState = depthStencilState;
 
         return this;
     }
 
-    public NewGraphicsPipeline Build()
+    public ShaderMaterial Build()
     {
-        return new NewGraphicsPipeline(
+        return new ShaderMaterial(
             _deviceContext,
+            _swapChainContext,
             _vertexShaderCode,
             _fragmentShaderCode,
             _primitiveTopology,

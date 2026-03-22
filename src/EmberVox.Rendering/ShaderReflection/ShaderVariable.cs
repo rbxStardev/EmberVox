@@ -7,9 +7,10 @@ public struct ShaderVariable
     public uint Location;
     public Format Format;
     public uint Stride;
+    public string Name;
 
     public override string ToString()
     {
-        return $"[ShaderVariable] location={Location} format={Format} stride={Stride}";
+        return $"{Name}: location={Location}, format={Format}, stride={Stride}";
     }
 }

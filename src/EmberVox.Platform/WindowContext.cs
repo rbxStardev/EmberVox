@@ -12,7 +12,7 @@ public class WindowContext : IDisposable
 
     public WindowContext()
     {
-        WindowOptions options = WindowOptions.DefaultVulkan with
+        var options = WindowOptions.DefaultVulkan with
         {
             Size = new Vector2D<int>(WindowWidth, WindowHeight),
             Title = "EmberVox: Vulkan",
