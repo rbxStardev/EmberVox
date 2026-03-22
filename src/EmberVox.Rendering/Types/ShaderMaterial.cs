@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using EmberVox.Core.Logging;
-using EmberVox.Core.Types;
 using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.GraphicsPipeline;
@@ -9,7 +8,6 @@ using EmberVox.Rendering.ShaderReflection;
 using Silk.NET.SPIRV.Reflect;
 using Silk.NET.Vulkan;
 using DescriptorType = Silk.NET.Vulkan.DescriptorType;
-using Result = Silk.NET.Vulkan.Result;
 
 namespace EmberVox.Rendering.Types;
 
@@ -20,9 +18,8 @@ public class ShaderMaterial : IResource
 
     private readonly DeviceContext _deviceContext;
     private readonly SwapChainContext _swapChainContext;
-    private readonly DescriptorSetLayout _descriptorSetLayout;
     private readonly BufferContext[] _uniformBuffers;
-    private readonly ShaderDescriptor[] _shaderDescriptors;
+    private readonly IDictionary<(uint set, uint binding), ShaderDescriptor> _shaderDescriptors;
 
     public unsafe ShaderMaterial(
         DeviceContext deviceContext,
@@ -46,23 +43,54 @@ public class ShaderMaterial : IResource
         using var fragReflector = new ShaderReflector(reflect, fragmentShaderCode);
         fragReflector.Dump();
 
-        using var descriptorSetLayoutBindings = Initializers.CreateDescriptorSetLayoutBindings(
-            vertReflector,
-            fragReflector
-        );
-        Logger.Metric?.WriteLine(
-            $"-> Descriptor bindings reflected: {descriptorSetLayoutBindings.Length}"
-        );
-        _descriptorSetLayout = CreateDescriptorSetLayout(
+        _shaderDescriptors = new Dictionary<(uint set, uint binding), ShaderDescriptor>();
+
+        foreach (var shaderDescriptor in vertReflector.GetShaderDescriptors())
+        {
+            _shaderDescriptors[(shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex)] =
+                shaderDescriptor;
+        }
+
+        foreach (var shaderDescriptor in fragReflector.GetShaderDescriptors())
+        {
+            if (
+                _shaderDescriptors.TryGetValue(
+                    (shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex),
+                    out var existingShaderDescriptor
+                )
+            )
+            {
+                _shaderDescriptors[(shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex)] =
+                    existingShaderDescriptor with
+                    {
+                        StageFlags =
+                            existingShaderDescriptor.StageFlags | shaderDescriptor.StageFlags,
+                    };
+            }
+            else
+            {
+                _shaderDescriptors[(shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex)] =
+                    shaderDescriptor;
+            }
+        }
+        Logger.Metric?.WriteLine($"Descriptors reflected: {_shaderDescriptors.Count}");
+
+        foreach (var shaderDescriptor in _shaderDescriptors.Values)
+        {
+            Logger.Metric?.WriteLine($"-> {shaderDescriptor}");
+        }
+
+        DescriptorContext = new NewDescriptorContext(
             deviceContext,
-            descriptorSetLayoutBindings
+            _shaderDescriptors,
+            swapChainContext.SwapChainImages.Length
         );
 
         GraphicsPipeline = new NewGraphicsPipeline(
             deviceContext,
             vertReflector,
             fragReflector,
-            _descriptorSetLayout,
+            DescriptorContext.DescriptorSetLayouts.Values.ToArray(),
             primitiveTopology,
             targetInfo,
             inputRate,
@@ -88,31 +116,24 @@ public class ShaderMaterial : IResource
         Logger.Metric?.WriteLine($"Creating uniform buffers of size: {totalUboSize} bytes");
         _uniformBuffers = CreateUniformBuffers(deviceContext, swapChainContext, totalUboSize);
 
-        DescriptorContext = new NewDescriptorContext(
-            deviceContext,
-            _descriptorSetLayout,
-            (uint)swapChainContext.SwapChainImages.Length
-        );
-
-        _shaderDescriptors = vertReflector.GetShaderDescriptors().ToArray();
-        foreach (var shaderDescriptor in vertReflector.GetShaderDescriptors())
+        foreach (var mergedDescriptor in _shaderDescriptors.Values)
         {
-            if (shaderDescriptor.BindingType == DescriptorType.UniformBuffer)
+            if (mergedDescriptor.BindingType == DescriptorType.UniformBuffer)
             {
                 for (int i = 0; i < swapChainContext.SwapChainImages.Length; i++)
                 {
                     DescriptorBufferInfo bufferInfo = new()
                     {
                         Buffer = _uniformBuffers[i].Buffer,
-                        Offset = shaderDescriptor.Offset,
-                        Range = shaderDescriptor.Stride,
+                        Offset = mergedDescriptor.Offset,
+                        Range = mergedDescriptor.Stride,
                     };
                     var writeDescriptorSet = new WriteDescriptorSet
                     {
                         SType = StructureType.WriteDescriptorSet,
-                        DstSet = DescriptorContext.GetDescriptorSet(i),
-                        // TODO - get binding for reflector ayjwhdauwjdh
-                        DstBinding = shaderDescriptor.BindingIndex,
+                        // TODO - replace this somehow with mergedDescriptor.Value.SetIndex
+                        DstSet = DescriptorContext.GetDescriptorSet(i, mergedDescriptor.SetIndex),
+                        DstBinding = mergedDescriptor.BindingIndex,
                         DstArrayElement = 0,
                         DescriptorCount = 1,
                         DescriptorType = DescriptorType.UniformBuffer,
@@ -132,11 +153,6 @@ public class ShaderMaterial : IResource
     public void Dispose()
     {
         DescriptorContext.Dispose();
-        _deviceContext.Api.DestroyDescriptorSetLayout(
-            _deviceContext.LogicalDevice,
-            _descriptorSetLayout,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
         foreach (var uniformBuffer in _uniformBuffers)
         {
             uniformBuffer.Dispose();
@@ -146,6 +162,10 @@ public class ShaderMaterial : IResource
 
     public unsafe void SetTexture(Sampler sampler, ImageView imageView, ImageLayout imageLayout)
     {
+        var textureBinding = _shaderDescriptors.Values.First(b =>
+            b.BindingType == DescriptorType.CombinedImageSampler
+        );
+
         for (int i = 0; i < _swapChainContext.SwapChainImages.Length; i++)
         {
             DescriptorImageInfo imageInfo = new()
@@ -158,11 +178,11 @@ public class ShaderMaterial : IResource
             WriteDescriptorSet writeDescriptorSet = new()
             {
                 SType = StructureType.WriteDescriptorSet,
-                DstSet = DescriptorContext.GetDescriptorSet(i),
-                DstBinding = 1,
+                DstSet = DescriptorContext.GetDescriptorSet(i, textureBinding.SetIndex),
+                DstBinding = textureBinding.BindingIndex,
                 DstArrayElement = 0,
                 DescriptorCount = 1,
-                DescriptorType = DescriptorType.CombinedImageSampler,
+                DescriptorType = textureBinding.BindingType,
                 PImageInfo = &imageInfo,
             };
 
@@ -177,7 +197,9 @@ public class ShaderMaterial : IResource
     public T GetShaderProperty<T>(int bufferIndex, string propertyName)
         where T : unmanaged
     {
-        var binding = _shaderDescriptors.First(descriptor => descriptor.Name == propertyName);
+        var binding = _shaderDescriptors.Values.First(descriptor =>
+            descriptor.Name == propertyName
+        );
         return MemoryMarshal.Read<T>(
             _uniformBuffers[bufferIndex].MappedMemory[(int)binding.Offset..]
         );
@@ -186,40 +208,13 @@ public class ShaderMaterial : IResource
     public void SetShaderProperty<T>(int bufferIndex, string propertyName, T value)
         where T : unmanaged
     {
-        var binding = _shaderDescriptors.First(descriptor => descriptor.Name == propertyName);
+        var binding = _shaderDescriptors.Values.First(descriptor =>
+            descriptor.Name == propertyName
+        );
         MemoryMarshal.Write(
             _uniformBuffers[bufferIndex].MappedMemory[(int)binding.Offset..],
             in value
         );
-    }
-
-    private static unsafe DescriptorSetLayout CreateDescriptorSetLayout(
-        DeviceContext deviceContext,
-        ManagedPointer<DescriptorSetLayoutBinding> descriptorSetLayoutBindings
-    )
-    {
-        DescriptorSetLayoutCreateInfo layoutInfo = new()
-        {
-            SType = StructureType.DescriptorSetLayoutCreateInfo,
-            BindingCount = (uint)descriptorSetLayoutBindings.Length,
-            PBindings = descriptorSetLayoutBindings.Pointer,
-        };
-
-        DescriptorSetLayout descriptorSetLayout = default;
-        if (
-            deviceContext.Api.CreateDescriptorSetLayout(
-                deviceContext.LogicalDevice,
-                new ReadOnlySpan<DescriptorSetLayoutCreateInfo>(ref layoutInfo),
-                ReadOnlySpan<AllocationCallbacks>.Empty,
-                new Span<DescriptorSetLayout>(ref descriptorSetLayout)
-            ) != Result.Success
-        )
-        {
-            Logger.Error?.WriteLine("Failed to create descriptor set layout.");
-            throw new Exception("Failed to create descriptor set layout.");
-        }
-
-        return descriptorSetLayout;
     }
 
     private BufferContext[] CreateUniformBuffers(

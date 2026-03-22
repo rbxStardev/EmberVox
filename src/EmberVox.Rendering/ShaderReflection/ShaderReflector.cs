@@ -64,6 +64,7 @@ public class ShaderReflector : IDisposable
             var pDescriptor = ppDescriptorBindings[i];
             result[i] = new ShaderDescriptor
             {
+                StageFlags = (ShaderStageFlags)_reflectModule.ShaderStage,
                 BindingIndex = pDescriptor->Binding,
                 SetIndex = pDescriptor->Set,
                 Stride = pDescriptor->Block.Size,

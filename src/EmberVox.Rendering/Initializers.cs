@@ -69,38 +69,24 @@ public static class Initializers
     }
 
     public static ManagedPointer<DescriptorSetLayoutBinding> CreateDescriptorSetLayoutBindings(
-        ShaderReflector vertReflector,
-        ShaderReflector fragReflector
+        ICollection<ShaderDescriptor> shaderDescriptors
     )
     {
-        List<DescriptorSetLayoutBinding> descriptorSetLayoutBindingList = [];
-        descriptorSetLayoutBindingList.AddRange(
-            vertReflector
-                .GetShaderDescriptors()
-                .ToArray()
-                .Select(shaderBinding => new DescriptorSetLayoutBinding
-                {
-                    Binding = shaderBinding.BindingIndex,
-                    DescriptorType = shaderBinding.BindingType,
-                    DescriptorCount = 1,
-                    StageFlags = vertReflector.StageFlags,
-                })
-        );
-        descriptorSetLayoutBindingList.AddRange(
-            fragReflector
-                .GetShaderDescriptors()
-                .ToArray()
-                .Select(shaderBinding => new DescriptorSetLayoutBinding
-                {
-                    Binding = shaderBinding.BindingIndex,
-                    DescriptorType = shaderBinding.BindingType,
-                    DescriptorCount = 1,
-                    StageFlags = fragReflector.StageFlags,
-                })
-        );
+        Span<DescriptorSetLayoutBinding> descriptorSetLayoutBindingList =
+            stackalloc DescriptorSetLayoutBinding[shaderDescriptors.Count];
+        shaderDescriptors
+            .Select(shaderDescriptor => new DescriptorSetLayoutBinding
+            {
+                Binding = shaderDescriptor.BindingIndex,
+                DescriptorType = shaderDescriptor.BindingType,
+                DescriptorCount = 1,
+                StageFlags = shaderDescriptor.StageFlags,
+            })
+            .ToArray()
+            .CopyTo(descriptorSetLayoutBindingList);
 
         ManagedPointer<DescriptorSetLayoutBinding> result = new(
-            descriptorSetLayoutBindingList.Count
+            descriptorSetLayoutBindingList.Length
         );
         descriptorSetLayoutBindingList.CopyTo(result.Span);
 

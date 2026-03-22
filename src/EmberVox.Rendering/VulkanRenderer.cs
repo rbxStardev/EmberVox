@@ -268,15 +268,12 @@ public sealed class VulkanRenderer : IDisposable
                 keyValuePair.Key.GraphicsPipeline.Pipeline
             );
 
-            var descriptorSet = keyValuePair.Key.DescriptorContext.GetDescriptorSet(
-                (int)imageIndex
-            );
             DeviceContext.Api.CmdBindDescriptorSets(
                 commandBuffer,
                 PipelineBindPoint.Graphics,
                 keyValuePair.Key.GraphicsPipeline.PipelineLayout,
                 0,
-                new ReadOnlySpan<DescriptorSet>(ref descriptorSet),
+                keyValuePair.Key.DescriptorContext.GetDescriptorSets((int)imageIndex),
                 ReadOnlySpan<uint>.Empty
             );
 

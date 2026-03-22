@@ -22,7 +22,7 @@ public class NewGraphicsPipeline : IDisposable
         DeviceContext deviceContext,
         ShaderReflector vertexReflector,
         ShaderReflector fragmentReflector,
-        DescriptorSetLayout descriptorSetLayout,
+        ReadOnlySpan<DescriptorSetLayout> descriptorSetLayoutSpan,
         PrimitiveTopology primitiveTopology,
         TargetInfo targetInfo,
         VertexInputRate inputRate,
@@ -37,7 +37,7 @@ public class NewGraphicsPipeline : IDisposable
 
         ShaderReflector[] reflectors = [vertexReflector, fragmentReflector];
 
-        PipelineLayout = CreatePipelineLayout(deviceContext, descriptorSetLayout);
+        PipelineLayout = CreatePipelineLayout(deviceContext, descriptorSetLayoutSpan);
 
         var vertShaderInputs = vertexReflector.GetInputVariables().ToArray();
         Logger.Metric?.WriteLine($"-> Vertex inputs: {vertShaderInputs.Length}");
@@ -214,14 +214,19 @@ public class NewGraphicsPipeline : IDisposable
 
     private static unsafe PipelineLayout CreatePipelineLayout(
         DeviceContext deviceContext,
-        DescriptorSetLayout descriptorSetLayout
+        ReadOnlySpan<DescriptorSetLayout> descriptorSetLayoutSpan
     )
     {
+        using ManagedPointer<DescriptorSetLayout> descriptorSetLayouts = new(
+            descriptorSetLayoutSpan.Length
+        );
+        descriptorSetLayoutSpan.CopyTo(descriptorSetLayouts.Span);
+
         PipelineLayoutCreateInfo pipelineLayoutInfo = new()
         {
             SType = StructureType.PipelineLayoutCreateInfo,
-            SetLayoutCount = 1,
-            PSetLayouts = &descriptorSetLayout,
+            SetLayoutCount = (uint)descriptorSetLayouts.Length,
+            PSetLayouts = descriptorSetLayouts.Pointer,
             PushConstantRangeCount = 0,
         };
 

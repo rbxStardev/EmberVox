@@ -4,6 +4,7 @@ namespace EmberVox.Rendering.ShaderReflection;
 
 public struct ShaderDescriptor
 {
+    public ShaderStageFlags StageFlags;
     public uint BindingIndex;
     public uint SetIndex;
     public uint Stride;
@@ -13,6 +14,6 @@ public struct ShaderDescriptor
 
     public override string ToString()
     {
-        return $"[{BindingType}] {Name}: binding={BindingIndex}, set={SetIndex}, stride={Stride}, offset={Offset},";
+        return $"[{BindingType}] {Name}: stage={StageFlags}, binding={BindingIndex}, set={SetIndex}, stride={Stride}, offset={Offset},";
     }
 }

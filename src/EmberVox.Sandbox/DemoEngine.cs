@@ -275,7 +275,7 @@ public class DemoEngine : IDisposable
         );
 
         Logger.Warning?.WriteLine("Initializing test graphics pipeline");
-        var shaderMaterial = ShaderMaterialBuilder
+        var shaderMaterialBuilder = ShaderMaterialBuilder
             .Empty.ProvideDependencies(_renderer.DeviceContext, _renderer.SwapChainContext)
             .WithVertexShaderCode(vertCode)
             .WithFragmentShaderCode(fragCode)
@@ -334,14 +334,14 @@ public class DemoEngine : IDisposable
             .WithDepthStencilState(
                 new DepthStencilState
                 {
-                    DepthTestEnable = false,
+                    DepthTestEnable = true,
                     DepthWriteEnable = true,
                     DepthCompareOp = CompareOp.Less,
                     DepthBoundsTestEnable = false,
                     StencilTestEnable = false,
                 }
-            )
-            .Build();
+            );
+        var shaderMaterial = shaderMaterialBuilder.Build();
 
         //-> Gathering Model Vertices & Indices
         List<Vertex> voxelVertices = [];
@@ -411,73 +411,7 @@ public class DemoEngine : IDisposable
         }
 
         //-> Creating Model Resources
-        var texturedVoxelMaterial = ShaderMaterialBuilder
-            .Empty.ProvideDependencies(_renderer.DeviceContext, _renderer.SwapChainContext)
-            .WithVertexShaderCode(vertCode)
-            .WithFragmentShaderCode(fragCode)
-            .WithPrimitiveTopology(PrimitiveTopology.TriangleList)
-            .WithTargetInfo(
-                new TargetInfo
-                {
-                    ColorTargetDescriptions =
-                    [
-                        new ColorTargetDescription
-                        {
-                            BlendState = new BlendState
-                            {
-                                ColorWriteMask =
-                                    ColorComponentFlags.RBit
-                                    | ColorComponentFlags.GBit
-                                    | ColorComponentFlags.BBit
-                                    | ColorComponentFlags.ABit,
-                                EnableBlend = true,
-                                SrcColorBlendFactor = BlendFactor.SrcAlpha,
-                                DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
-                                ColorBlendOp = BlendOp.Add,
-                                SrcAlphaBlendFactor = BlendFactor.One,
-                                DstAlphaBlendFactor = BlendFactor.Zero,
-                                AlphaBlendOp = BlendOp.Add,
-                            },
-                            Format = _renderer.SwapChainContext.SwapChainImageFormat,
-                        },
-                    ],
-                    DepthAttachmentFormat = _renderer.DepthContext.DepthImageFormat,
-                }
-            )
-            .WithInputRate(VertexInputRate.Vertex)
-            .WithRasterizerState(
-                new RasterizerState
-                {
-                    PolygonMode = PolygonMode.Fill,
-                    FrontFace = FrontFace.Clockwise,
-                    CullMode = CullModeFlags.BackBit,
-                    LineWidth = 1.0f,
-                    DepthClampEnable = false,
-                    DepthBiasClamp = 0.0f,
-                    DepthBiasEnable = false,
-                    DepthBiasConstantFactor = 0.0f,
-                    DepthBiasSlopeFactor = 1.0f,
-                    RasterizerDiscardEnable = false,
-                }
-            )
-            .WithMultisampleState(
-                new MultisampleState
-                {
-                    RasterizationSamples = SampleCountFlags.Count1Bit,
-                    SampleShadingEnable = false,
-                }
-            )
-            .WithDepthStencilState(
-                new DepthStencilState
-                {
-                    DepthTestEnable = false,
-                    DepthWriteEnable = true,
-                    DepthCompareOp = CompareOp.Less,
-                    DepthBoundsTestEnable = false,
-                    StencilTestEnable = false,
-                }
-            )
-            .Build();
+        var texturedVoxelMaterial = shaderMaterialBuilder.Build();
 
         var texture2D2 = new Texture2D(
             _renderer.DeviceContext,

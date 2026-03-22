@@ -1,29 +1,59 @@
+using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
 using EmberVox.Rendering.ResourceManagement;
+using EmberVox.Rendering.ShaderReflection;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
 public sealed class NewDescriptorContext : IResource
 {
+    public IDictionary<uint, DescriptorSetLayout> DescriptorSetLayouts { get; }
+
     private readonly DeviceContext _deviceContext;
-    private readonly DescriptorSetLayout _descriptorSetLayout;
     private readonly DescriptorPool _descriptorPool;
     private DescriptorSet[] _descriptorSets = [];
 
-    public DescriptorSet GetDescriptorSet(int index) => _descriptorSets[index];
+    public DescriptorSet GetDescriptorSet(int bufferIndex, uint setIndex) =>
+        _descriptorSets[bufferIndex * DescriptorSetLayouts.Count + setIndex];
 
+    public DescriptorSet[] GetDescriptorSets(int bufferIndex) =>
+        _descriptorSets
+            .Skip(bufferIndex * DescriptorSetLayouts.Count)
+            .Take(DescriptorSetLayouts.Count)
+            .ToArray();
+
+    // TODO - Separate by layout set too
     public NewDescriptorContext(
         DeviceContext deviceContext,
-        DescriptorSetLayout descriptorSetLayout,
-        uint descriptorSetCount
+        IDictionary<(uint set, uint binding), ShaderDescriptor> shaderDescriptors,
+        int setMultiplier
     )
     {
         _deviceContext = deviceContext;
-        _descriptorSetLayout = descriptorSetLayout;
 
-        _descriptorPool = CreateDescriptorPool(descriptorSetCount);
-        CreateDescriptorSets(descriptorSetCount);
+        var groupedBindings = shaderDescriptors
+            .GroupBy(kvp => kvp.Key.set)
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Select(g => g.Value).ToArray());
+
+        DescriptorSetLayouts = new Dictionary<uint, DescriptorSetLayout>();
+        foreach (var groupedSet in groupedBindings)
+        {
+            using var descriptorSetLayoutBindings = Initializers.CreateDescriptorSetLayoutBindings(
+                groupedSet.Value
+            );
+
+            DescriptorSetLayouts[groupedSet.Key] = CreateDescriptorSetLayout(
+                deviceContext,
+                descriptorSetLayoutBindings
+            );
+        }
+
+        _descriptorPool = CreateDescriptorPool(
+            groupedBindings.Values.SelectMany(x => x).ToArray(),
+            (uint)setMultiplier
+        );
+        CreateDescriptorSets(setMultiplier);
     }
 
     public void Dispose()
@@ -40,16 +70,55 @@ public sealed class NewDescriptorContext : IResource
             ReadOnlySpan<AllocationCallbacks>.Empty
         );
 
+        foreach (var kvp in DescriptorSetLayouts)
+        {
+            _deviceContext.Api.DestroyDescriptorSetLayout(
+                _deviceContext.LogicalDevice,
+                kvp.Value,
+                ReadOnlySpan<AllocationCallbacks>.Empty
+            );
+        }
+
         GC.SuppressFinalize(this);
     }
 
-    private unsafe DescriptorPool CreateDescriptorPool(uint descriptorCount)
+    private static unsafe DescriptorSetLayout CreateDescriptorSetLayout(
+        DeviceContext deviceContext,
+        ManagedPointer<DescriptorSetLayoutBinding> descriptorSetLayoutBindings
+    )
     {
-        DescriptorPoolSize[] poolSizeArray =
-        [
-            new(DescriptorType.UniformBuffer, descriptorCount),
-            new(DescriptorType.CombinedImageSampler, descriptorCount),
-        ];
+        DescriptorSetLayoutCreateInfo layoutInfo = new()
+        {
+            SType = StructureType.DescriptorSetLayoutCreateInfo,
+            BindingCount = (uint)descriptorSetLayoutBindings.Length,
+            PBindings = descriptorSetLayoutBindings.Pointer,
+        };
+
+        DescriptorSetLayout descriptorSetLayout = default;
+        if (
+            deviceContext.Api.CreateDescriptorSetLayout(
+                deviceContext.LogicalDevice,
+                new ReadOnlySpan<DescriptorSetLayoutCreateInfo>(ref layoutInfo),
+                ReadOnlySpan<AllocationCallbacks>.Empty,
+                new Span<DescriptorSetLayout>(ref descriptorSetLayout)
+            ) != Result.Success
+        )
+        {
+            Logger.Error?.WriteLine("Failed to create descriptor set layout.");
+            throw new Exception("Failed to create descriptor set layout.");
+        }
+
+        return descriptorSetLayout;
+    }
+
+    private unsafe DescriptorPool CreateDescriptorPool(
+        ShaderDescriptor[] shaderDescriptors,
+        uint setMultiplier
+    )
+    {
+        DescriptorPoolSize[] poolSizeArray = shaderDescriptors
+            .Select(x => new DescriptorPoolSize(x.BindingType, setMultiplier))
+            .ToArray();
 
         using ManagedPointer<DescriptorPoolSize> poolSize = new(poolSizeArray.Length);
         poolSizeArray.CopyTo(poolSize.Span);
@@ -58,7 +127,7 @@ public sealed class NewDescriptorContext : IResource
         {
             SType = StructureType.DescriptorPoolCreateInfo,
             Flags = DescriptorPoolCreateFlags.FreeDescriptorSetBit,
-            MaxSets = descriptorCount,
+            MaxSets = (uint)(DescriptorSetLayouts.Values.Count * setMultiplier),
             PoolSizeCount = (uint)poolSize.Length,
             PPoolSizes = poolSize.Pointer,
         };
@@ -74,13 +143,15 @@ public sealed class NewDescriptorContext : IResource
         return descriptorPool;
     }
 
-    private unsafe void CreateDescriptorSets(uint descriptorSetCount)
+    private unsafe void CreateDescriptorSets(int setMultiplier)
     {
-        var layoutArray = new DescriptorSetLayout[descriptorSetCount];
-        Array.Fill(layoutArray, _descriptorSetLayout);
+        var layouts = Enumerable
+            .Range(0, setMultiplier)
+            .SelectMany(_ => DescriptorSetLayouts.Values)
+            .ToArray();
 
-        using ManagedPointer<DescriptorSetLayout> layout = new(layoutArray.Length);
-        layoutArray.CopyTo(layout.Span);
+        using ManagedPointer<DescriptorSetLayout> layout = new(layouts.Length);
+        layouts.CopyTo(layout.Span);
 
         DescriptorSetAllocateInfo allocateInfo = new()
         {
@@ -90,7 +161,7 @@ public sealed class NewDescriptorContext : IResource
             PSetLayouts = layout.Pointer,
         };
 
-        _descriptorSets = new DescriptorSet[descriptorSetCount];
+        _descriptorSets = new DescriptorSet[layouts.Length];
 
         _deviceContext.Api.AllocateDescriptorSets(
             _deviceContext.LogicalDevice,
