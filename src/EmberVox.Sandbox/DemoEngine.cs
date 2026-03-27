@@ -365,7 +365,7 @@ public class DemoEngine : IDisposable
         foreach (var voxelFace in Enum.GetValues<VoxelFace>())
         {
             voxelVertices.AddRange(
-                VoxelDataUtils.GetVoxelFaceVertices(voxelFace, new Vector3(0, 0, 0))
+                VoxelDataUtils.GetVoxelFaceVertices(voxelFace, new Vector3(5, 0, 0))
             );
             voxelIndices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
             totalFaces++;
@@ -462,6 +462,65 @@ public class DemoEngine : IDisposable
         _renderer.RegisterMesh(texturedVoxelMesh.Mesh, texturedVoxelMesh.ShaderMaterial);
         */
 
+        var sphereMaterial = shaderMaterialBuilder.Build();
+        ResourceManager.SubmitResource(sphereMaterial);
+
+        //-> Gathering Model Vertices & Indices
+        UvSphereGenerator sphereGenerator = new UvSphereGenerator(1, 64);
+
+        //-> Gathering Model Texture Data
+        var sphereNoise = new FastNoiseLite();
+        sphereNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+        sphereNoise.SetFrequency(0.05f);
+
+        //-> Creating Model Resources
+        var sphereTextureData = TextureUtils.GenDataFromImage(
+            Path.Combine(AppContext.BaseDirectory, "Textures", "peter.png")
+        );
+
+        var sphereTexture = new Texture2D(
+            _renderer.DeviceContext,
+            _renderer.CommandContext,
+            sphereTextureData
+        );
+        ResourceManager.SubmitResource(sphereTexture);
+
+        sphereMaterial.SetShaderCombinedImageSampler(
+            "texture",
+            sphereTexture.Sampler,
+            sphereTexture.ImageView,
+            ImageLayout.ShaderReadOnlyOptimal
+        );
+
+        Vertex[] sphereVertices = sphereGenerator
+            .Vertices.Select(
+                (pos, i) =>
+                    new Vertex
+                    {
+                        Position = pos,
+                        TexCoord = sphereGenerator.UVs[i],
+                        Color = Vector4.One,
+                    }
+            )
+            .ToArray();
+
+        uint[] sphereIndices = sphereGenerator.Indices.Select(i => (uint)i).ToArray();
+
+        MeshComponent sphereMesh = new()
+        {
+            ShaderMaterial = sphereMaterial,
+            Mesh = new Mesh(
+                _renderer.DeviceContext,
+                _renderer.CommandContext,
+                sphereVertices,
+                sphereIndices
+            ),
+        };
+        ResourceManager.SubmitResource(sphereMesh.Mesh);
+
+        _renderer.RegisterShaderMaterial(sphereMaterial);
+        _renderer.RegisterMesh(sphereMesh.Mesh, sphereMesh.ShaderMaterial);
+
         _windowContext.Handle.Update += HandleOnUpdate;
         _windowContext.Handle.FramebufferResize += HandleOnFramebufferResize;
         _windowContext.Handle.Render += HandleOnRender;
@@ -481,61 +540,15 @@ public class DemoEngine : IDisposable
         _windowContext.Dispose();
     }
 
-    /*
-    public unsafe List<(Mesh, Material)> LoadModel(string modelPath, string? texturePath = null)
+    private Vector3 SphericalToCartesian(float radius, float theta, float phi)
     {
-        Scene* scene = _assimp.ImportFile(
-            modelPath,
-            (uint)(
-                PostProcessSteps.JoinIdenticalVertices
-                | PostProcessSteps.Triangulate
-                | PostProcessSteps.FlipWindingOrder
-                | PostProcessSteps.ImproveCacheLocality
-                | PostProcessSteps.RemoveRedundantMaterials
-                | PostProcessSteps.GenerateUVCoords
-            )
-        );
- 
-        if (scene == null)
-            throw new Exception("Could not load model: " + modelPath);
- 
-        List<(Mesh, Material)> parts = [];
- 
-        for (int meshIndex = 0; meshIndex < scene->MNumMeshes; meshIndex++)
+        return new Vector3
         {
-            Silk.NET.Assimp.Mesh* mesh = scene->MMeshes[meshIndex];
-            Mesh loadedMesh = LoadMeshFromScene(scene, meshIndex);
- 
-            Material loadedMaterial;
-            try
-            {
-                loadedMaterial = LoadMaterialFromScene(scene, (int)mesh->MMaterialIndex);
-            }
-            catch
-            {
-                if (texturePath == null)
-                    throw new Exception(
-                        $"Mesh [{meshIndex}] has no embedded texture and no separate texture or fallback was provided"
-                    );
- 
-                loadedMaterial = new Material(
-                    _renderer,
-                    new Texture2D(
-                        _renderer.DeviceContext,
-                        _renderer.CommandContext,
-                        TextureUtils.GenDataFromImage(texturePath)
-                    )
-                );
-            }
- 
-            parts.Add((loadedMesh, loadedMaterial));
-        }
- 
-        _assimp.ReleaseImport(scene);
- 
-        return parts;
+            X = radius * float.Sin(phi) * float.Cos(theta),
+            Y = radius * float.Sin(phi) * float.Sin(theta),
+            Z = radius * float.Cos(phi),
+        };
     }
-    */
 
     private unsafe Mesh LoadMeshFromScene(Scene* scene, int meshIndex)
     {

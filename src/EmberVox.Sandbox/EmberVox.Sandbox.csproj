@@ -30,6 +30,9 @@
     <None Update="Textures\viking_room.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Textures\peter.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <Target Name="CompileSlangShaders" BeforeTargets="AssignTargetPaths">
