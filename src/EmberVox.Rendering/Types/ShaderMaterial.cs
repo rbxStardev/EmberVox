@@ -158,11 +158,62 @@ public class ShaderMaterial : IResource
         GraphicsPipeline.Dispose();
     }
 
-    public unsafe void SetTexture(Sampler sampler, ImageView imageView, ImageLayout imageLayout)
+    public T? GetShaderUniform<T>(int bufferIndex, string propertyName)
+        where T : unmanaged
     {
-        var textureBinding = _shaderDescriptors.Values.First(b =>
-            b.BindingType == DescriptorType.CombinedImageSampler
+        var binding = _shaderDescriptors.Values.First(descriptor =>
+            descriptor.Name == propertyName
         );
+        if (binding.BindingType != DescriptorType.UniformBuffer)
+        {
+            Logger.Warning?.WriteLine(
+                $"Shader property [{binding.BindingType}]{propertyName} is not an UniformBuffer"
+            );
+            return null;
+        }
+
+        return MemoryMarshal.Read<T>(
+            _uniformBuffers[bufferIndex].MappedMemory[(int)binding.Offset..]
+        );
+    }
+
+    public void SetShaderUniform<T>(int bufferIndex, string propertyName, T value)
+        where T : unmanaged
+    {
+        var binding = _shaderDescriptors.Values.First(descriptor =>
+            descriptor.Name == propertyName
+        );
+        if (binding.BindingType != DescriptorType.UniformBuffer)
+        {
+            Logger.Warning?.WriteLine(
+                $"Shader property [{binding.BindingType}]{propertyName} is not an UniformBuffer"
+            );
+            return;
+        }
+
+        MemoryMarshal.Write(
+            _uniformBuffers[bufferIndex].MappedMemory[(int)binding.Offset..],
+            in value
+        );
+    }
+
+    public unsafe void SetShaderCombinedImageSampler(
+        string propertyName,
+        Sampler sampler,
+        ImageView imageView,
+        ImageLayout imageLayout
+    )
+    {
+        var binding = _shaderDescriptors.Values.First(descriptor =>
+            descriptor.Name == propertyName
+        );
+        if (binding.BindingType != DescriptorType.CombinedImageSampler)
+        {
+            Logger.Warning?.WriteLine(
+                $"Shader property [{binding.BindingType}]{propertyName} is not a CombinedImageSampler"
+            );
+            return;
+        }
 
         for (int i = 0; i < _swapChainContext.SwapChainImages.Length; i++)
         {
@@ -176,11 +227,11 @@ public class ShaderMaterial : IResource
             WriteDescriptorSet writeDescriptorSet = new()
             {
                 SType = StructureType.WriteDescriptorSet,
-                DstSet = DescriptorContext.GetDescriptorSet(i, textureBinding.SetIndex),
-                DstBinding = textureBinding.BindingIndex,
+                DstSet = DescriptorContext.GetDescriptorSet(i, binding.SetIndex),
+                DstBinding = binding.BindingIndex,
                 DstArrayElement = 0,
                 DescriptorCount = 1,
-                DescriptorType = textureBinding.BindingType,
+                DescriptorType = binding.BindingType,
                 PImageInfo = &imageInfo,
             };
 
@@ -190,29 +241,6 @@ public class ShaderMaterial : IResource
                 ReadOnlySpan<CopyDescriptorSet>.Empty
             );
         }
-    }
-
-    public T GetShaderProperty<T>(int bufferIndex, string propertyName)
-        where T : unmanaged
-    {
-        var binding = _shaderDescriptors.Values.First(descriptor =>
-            descriptor.Name == propertyName
-        );
-        return MemoryMarshal.Read<T>(
-            _uniformBuffers[bufferIndex].MappedMemory[(int)binding.Offset..]
-        );
-    }
-
-    public void SetShaderProperty<T>(int bufferIndex, string propertyName, T value)
-        where T : unmanaged
-    {
-        var binding = _shaderDescriptors.Values.First(descriptor =>
-            descriptor.Name == propertyName
-        );
-        MemoryMarshal.Write(
-            _uniformBuffers[bufferIndex].MappedMemory[(int)binding.Offset..],
-            in value
-        );
     }
 
     private BufferContext[] CreateUniformBuffers(

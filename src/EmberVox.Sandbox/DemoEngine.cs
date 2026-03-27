@@ -371,7 +371,8 @@ public class DemoEngine : IDisposable
             voxelTextureData
         );
         _renderer.ResourceManager.SubmitResource(texture2D);
-        shaderMaterial.SetTexture(
+        shaderMaterial.SetShaderCombinedImageSampler(
+            "texture",
             texture2D.Sampler,
             texture2D.ImageView,
             ImageLayout.ShaderReadOnlyOptimal
@@ -421,7 +422,8 @@ public class DemoEngine : IDisposable
             )
         );
         _renderer.ResourceManager.SubmitResource(texture2D2);
-        texturedVoxelMaterial.SetTexture(
+        texturedVoxelMaterial.SetShaderCombinedImageSampler(
+            "texture",
             texture2D2.Sampler,
             texture2D2.ImageView,
             ImageLayout.ShaderReadOnlyOptimal

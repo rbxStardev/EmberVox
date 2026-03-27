@@ -263,7 +263,7 @@ public sealed class VulkanRenderer : IDisposable
             var proj = uniformBufferObject.Proj;
             proj.M22 *= -1; // Flip Y (DO NOT TURN OFFFFFF)
             uniformBufferObject.Proj = proj;
-            keyValuePair.Key.SetShaderProperty((int)imageIndex, "ubo", uniformBufferObject);
+            keyValuePair.Key.SetShaderUniform((int)imageIndex, "ubo", uniformBufferObject);
 
             DeviceContext.Api.CmdBindPipeline(
                 commandBuffer,
