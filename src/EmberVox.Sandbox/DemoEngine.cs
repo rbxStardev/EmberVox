@@ -266,6 +266,10 @@ public class DemoEngine : IDisposable
         */
 
         _mainCamera = new Camera();
+        _mainCamera.TransformComponent = _mainCamera.TransformComponent with
+        {
+            Position = new Vector3(-1f, 0.5f, 0f),
+        };
 
         byte[] vertCode = File.ReadAllBytes(
             Path.Combine(AppContext.BaseDirectory, "Shaders", "base.vert.spv")
@@ -351,7 +355,7 @@ public class DemoEngine : IDisposable
         foreach (var voxelFace in Enum.GetValues<VoxelFace>())
         {
             voxelVertices.AddRange(
-                VoxelDataUtils.GetVoxelFaceVertices(voxelFace, new Vector3(0 + 2, 0, 0))
+                VoxelDataUtils.GetVoxelFaceVertices(voxelFace, new Vector3(0, 0, 0))
             );
             voxelIndices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
             totalFaces++;
@@ -392,6 +396,8 @@ public class DemoEngine : IDisposable
         _renderer.RegisterShaderMaterial(shaderMaterial);
         _renderer.RegisterMesh(voxelMesh.Mesh, voxelMesh.ShaderMaterial);
 
+        /*
+        // --> Textured Voxel <--
         //-> Gathering Model Vertices & Indices
         List<Vertex> texturedVoxelVertices = [];
         List<uint> texturedVoxelIndices = [];
@@ -442,6 +448,7 @@ public class DemoEngine : IDisposable
 
         _renderer.RegisterShaderMaterial(texturedVoxelMaterial);
         _renderer.RegisterMesh(texturedVoxelMesh.Mesh, texturedVoxelMesh.ShaderMaterial);
+        */
 
         _windowContext.Handle.Update += HandleOnUpdate;
         _windowContext.Handle.FramebufferResize += HandleOnFramebufferResize;
