@@ -13,9 +13,6 @@ namespace EmberVox.Rendering.GraphicsPipeline;
 
 public class NewGraphicsPipeline : IDisposable
 {
-    public PipelineLayout PipelineLayout { get; }
-    public Pipeline Pipeline { get; }
-
     private readonly DeviceContext _deviceContext;
 
     public unsafe NewGraphicsPipeline(
@@ -82,6 +79,7 @@ public class NewGraphicsPipeline : IDisposable
             );
             totalStride += current.Stride;
         }
+
         Logger.Metric?.WriteLine(
             $"-> Total vertex stride: {totalStride} bytes, {attributeDescriptions.Length} attribute(s)."
         );
@@ -160,21 +158,34 @@ public class NewGraphicsPipeline : IDisposable
         finally
         {
             foreach (var info in createInfos)
-            {
                 SilkMarshal.Free((nint)info.PName);
-            }
 
             foreach (var module in modules)
-            {
                 _deviceContext.Api.DestroyShaderModule(
                     _deviceContext.LogicalDevice,
                     module,
                     ReadOnlySpan<AllocationCallbacks>.Empty
                 );
-            }
         }
 
         Logger.Info?.WriteLine("-----> GraphicsPipeline creation: OK <-----");
+    }
+
+    public PipelineLayout PipelineLayout { get; }
+    public Pipeline Pipeline { get; }
+
+    public void Dispose()
+    {
+        _deviceContext.Api.DestroyPipelineLayout(
+            _deviceContext.LogicalDevice,
+            PipelineLayout,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
+        _deviceContext.Api.DestroyPipeline(
+            _deviceContext.LogicalDevice,
+            Pipeline,
+            ReadOnlySpan<AllocationCallbacks>.Empty
+        );
     }
 
     private static ManagedPointer<PipelineColorBlendAttachmentState> SetupAttachmentStates(
@@ -184,7 +195,6 @@ public class NewGraphicsPipeline : IDisposable
         int ptr = 0;
         ManagedPointer<PipelineColorBlendAttachmentState> result = new(targets.Length);
         foreach (var blendState in targets.Select(desc => desc.BlendState))
-        {
             result[ptr++] = new PipelineColorBlendAttachmentState
             {
                 ColorWriteMask = blendState.ColorWriteMask,
@@ -196,7 +206,6 @@ public class NewGraphicsPipeline : IDisposable
                 SrcAlphaBlendFactor = blendState.SrcAlphaBlendFactor,
                 DstAlphaBlendFactor = blendState.DstAlphaBlendFactor,
             };
-        }
 
         return result;
     }
@@ -205,9 +214,7 @@ public class NewGraphicsPipeline : IDisposable
     {
         ManagedPointer<Format> result = new(targets.Length);
         for (int i = 0; i < targets.Length; i++)
-        {
             result[i] = targets[i].Format;
-        }
 
         return result;
     }
@@ -245,19 +252,5 @@ public class NewGraphicsPipeline : IDisposable
         }
 
         return pipelineLayout;
-    }
-
-    public void Dispose()
-    {
-        _deviceContext.Api.DestroyPipelineLayout(
-            _deviceContext.LogicalDevice,
-            PipelineLayout,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
-        _deviceContext.Api.DestroyPipeline(
-            _deviceContext.LogicalDevice,
-            Pipeline,
-            ReadOnlySpan<AllocationCallbacks>.Empty
-        );
     }
 }

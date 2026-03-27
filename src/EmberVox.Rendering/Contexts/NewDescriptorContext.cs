@@ -8,20 +8,10 @@ namespace EmberVox.Rendering.Contexts;
 
 public sealed class NewDescriptorContext : IResource
 {
-    public IDictionary<uint, DescriptorSetLayout> DescriptorSetLayouts { get; }
+    private readonly DescriptorPool _descriptorPool;
 
     private readonly DeviceContext _deviceContext;
-    private readonly DescriptorPool _descriptorPool;
     private DescriptorSet[] _descriptorSets = [];
-
-    public DescriptorSet GetDescriptorSet(int bufferIndex, uint setIndex) =>
-        _descriptorSets[bufferIndex * DescriptorSetLayouts.Count + setIndex];
-
-    public DescriptorSet[] GetDescriptorSets(int bufferIndex) =>
-        _descriptorSets
-            .Skip(bufferIndex * DescriptorSetLayouts.Count)
-            .Take(DescriptorSetLayouts.Count)
-            .ToArray();
 
     // TODO - Separate by layout set too
     public NewDescriptorContext(
@@ -56,6 +46,8 @@ public sealed class NewDescriptorContext : IResource
         CreateDescriptorSets(setMultiplier);
     }
 
+    public IDictionary<uint, DescriptorSetLayout> DescriptorSetLayouts { get; }
+
     public void Dispose()
     {
         _deviceContext.Api.FreeDescriptorSets(
@@ -71,15 +63,26 @@ public sealed class NewDescriptorContext : IResource
         );
 
         foreach (var kvp in DescriptorSetLayouts)
-        {
             _deviceContext.Api.DestroyDescriptorSetLayout(
                 _deviceContext.LogicalDevice,
                 kvp.Value,
                 ReadOnlySpan<AllocationCallbacks>.Empty
             );
-        }
 
         GC.SuppressFinalize(this);
+    }
+
+    public DescriptorSet GetDescriptorSet(int bufferIndex, uint setIndex)
+    {
+        return _descriptorSets[bufferIndex * DescriptorSetLayouts.Count + setIndex];
+    }
+
+    public DescriptorSet[] GetDescriptorSets(int bufferIndex)
+    {
+        return _descriptorSets
+            .Skip(bufferIndex * DescriptorSetLayouts.Count)
+            .Take(DescriptorSetLayouts.Count)
+            .ToArray();
     }
 
     private static unsafe DescriptorSetLayout CreateDescriptorSetLayout(
@@ -116,7 +119,7 @@ public sealed class NewDescriptorContext : IResource
         uint setMultiplier
     )
     {
-        DescriptorPoolSize[] poolSizeArray = shaderDescriptors
+        var poolSizeArray = shaderDescriptors
             .Select(x => new DescriptorPoolSize(x.BindingType, setMultiplier))
             .ToArray();
 

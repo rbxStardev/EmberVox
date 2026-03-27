@@ -9,17 +9,11 @@ namespace EmberVox.Rendering.Contexts;
 
 public sealed class DeviceContext : IResource
 {
-    public Vk Api { get; }
-    public PhysicalDevice PhysicalDevice { get; }
-    public Device LogicalDevice { get; }
-    public QueueFamily GraphicsQueue { get; }
-    public QueueFamily PresentQueue { get; }
-
     private static readonly string[] DeviceExtensions = [KhrSwapchain.ExtensionName];
 
     private readonly Instance _instance;
-    private readonly SurfaceContext _surfaceContext;
     private readonly PhysicalDeviceMemoryProperties _memoryProperties;
+    private readonly SurfaceContext _surfaceContext;
 
     public DeviceContext(Vk vk, Instance instance, SurfaceContext surfaceContext)
     {
@@ -47,6 +41,12 @@ public sealed class DeviceContext : IResource
 
         _memoryProperties = Api.GetPhysicalDeviceMemoryProperties(PhysicalDevice);
     }
+
+    public Vk Api { get; }
+    public PhysicalDevice PhysicalDevice { get; }
+    public Device LogicalDevice { get; }
+    public QueueFamily GraphicsQueue { get; }
+    public QueueFamily PresentQueue { get; }
 
     public void Dispose()
     {
@@ -85,14 +85,12 @@ public sealed class DeviceContext : IResource
     public uint GetMemoryType(uint typeFilter, MemoryPropertyFlags properties)
     {
         for (int i = 0; i < _memoryProperties.MemoryTypeCount; i++)
-        {
             if (
                 // TODO - Make it so i dont have to cast uint twice, somehow
                 (typeFilter & (uint)(1 << i)) != 0
                 && (_memoryProperties.MemoryTypes[i].PropertyFlags & properties) == properties
             )
                 return (uint)i;
-        }
 
         throw new Exception("Failed to find suitable memory type!");
     }
@@ -116,17 +114,13 @@ public sealed class DeviceContext : IResource
                 tiling == ImageTiling.Linear
                 && (properties.LinearTilingFeatures & formatFeatures) == formatFeatures
             )
-            {
                 return format;
-            }
 
             if (
                 tiling == ImageTiling.Optimal
                 && (properties.OptimalTilingFeatures & formatFeatures) == formatFeatures
             )
-            {
                 return format;
-            }
         }
 
         throw new Exception("Failed to find supported format!");
@@ -304,7 +298,6 @@ public sealed class DeviceContext : IResource
         var queueCreateInfoArray = new DeviceQueueCreateInfo[indices.Length];
 
         for (int i = 0; i < indices.Length; i++)
-        {
             queueCreateInfoArray[i] = new DeviceQueueCreateInfo
             {
                 SType = StructureType.DeviceQueueCreateInfo,
@@ -312,7 +305,6 @@ public sealed class DeviceContext : IResource
                 QueueCount = 1,
                 PQueuePriorities = &queuePriority,
             };
-        }
 
         //fixed (DeviceQueueCreateInfo* pQueueCreateInfos = queueCreateInfos)
         //{

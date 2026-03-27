@@ -30,9 +30,7 @@ public static class ShaderUtils
                 new Span<ShaderModule>(ref shaderModule)
             ) != Result.Success
         )
-        {
             throw new Exception("Failed to create shader module");
-        }
 
         return shaderModule;
     }

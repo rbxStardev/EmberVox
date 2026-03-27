@@ -24,10 +24,10 @@ namespace EmberVox.Sandbox;
 
 public class DemoEngine : IDisposable
 {
-    private readonly WindowContext _windowContext;
-    private readonly VulkanRenderer _renderer;
     private readonly Assimp _assimp;
     private readonly Camera _mainCamera;
+    private readonly VulkanRenderer _renderer;
+    private readonly WindowContext _windowContext;
 
     public DemoEngine()
     {
@@ -39,7 +39,7 @@ public class DemoEngine : IDisposable
 
         /*
         #region Viking Room
-
+  
         //-> Loading Model File
         _assimp = Assimp.GetApi();
         Scene* scene = _assimp.ImportFile(
@@ -50,18 +50,18 @@ public class DemoEngine : IDisposable
                 | PostProcessSteps.JoinIdenticalVertices
             )
         );
-
+  
         if (scene == null)
             throw new Exception($"Assimp failed: {_assimp.GetErrorStringS()}");
-
+  
         //-> Gathering Model Vertices & Indices
         List<Vertex> vikingRoomVertices = [];
         List<uint> vikingRoomIndices = [];
-
+  
         for (int m = 0; m < scene->MNumMeshes; m++)
         {
             Silk.NET.Assimp.Mesh* sceneMesh = scene->MMeshes[m];
-
+  
             for (int v = 0; v < sceneMesh->MNumVertices; v++)
             {
                 Vector3 vertexPosition = sceneMesh->MVertices[v];
@@ -75,7 +75,7 @@ public class DemoEngine : IDisposable
                     }
                 );
             }
-
+  
             for (int f = 0; f < sceneMesh->MNumFaces; f++)
             {
                 Face face = sceneMesh->MFaces[f];
@@ -86,9 +86,9 @@ public class DemoEngine : IDisposable
                 }
             }
         }
-
+  
         _assimp.ReleaseImport(scene);
-
+  
         //-> Creating Model Resources
         Material vikingRoomMaterial = new Material(
             _renderer,
@@ -99,7 +99,7 @@ public class DemoEngine : IDisposable
             )
         );
         _renderer.RegisterMaterial(vikingRoomMaterial);
-
+  
         MeshComponent vikingRoomMeshComponent = new()
         {
             Material = vikingRoomMaterial,
@@ -110,55 +110,55 @@ public class DemoEngine : IDisposable
                 vikingRoomIndices.ToArray()
             ),
         };
-
+  
         _renderer.RegisterMesh(vikingRoomMeshComponent.Mesh, vikingRoomMeshComponent.Material);
-
+  
         #endregion
         */
 
         /*
         #region Viking Room
-
+  
         //-> Loading Model File
         List<(Mesh, Material)> modelData = LoadModel(
             Path.Combine(AppContext.BaseDirectory, "Models", "viking_room.obj"),
             Path.Combine(AppContext.BaseDirectory, "Textures", "viking_room.png")
         );
-
+  
         foreach (var (mesh, material) in modelData)
         {
             _renderer.RegisterMaterial(material);
             _renderer.RegisterMesh(mesh, material);
         }
-
+  
         #endregion
         */
 
         /*
         #region Rubber Duck
-
+  
         //-> Loading Model File
         List<(Mesh, Material)> duckData = LoadModel(
             Path.Combine(AppContext.BaseDirectory, "Models", "rubber_duck.glb")
         );
-
+  
         foreach (var (mesh, material) in duckData)
         {
             _renderer.RegisterMaterial(material);
             _renderer.RegisterMesh(mesh, material);
         }
-
+  
         #endregion
         */
 
         /*
         #region Voxel
-
+  
         //-> Gathering Model Vertices & Indices
            List<Vertex> voxelVertices = [];
            List<uint> voxelIndices = [];
            int totalFaces = 0;
-
+  
            foreach (VoxelFace voxelFace in Enum.GetValues<VoxelFace>())
            {
                voxelVertices.AddRange(
@@ -167,21 +167,21 @@ public class DemoEngine : IDisposable
                voxelIndices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(totalFaces));
                totalFaces++;
            }
-
+  
            //-> Gathering Model Texture Data
            FastNoiseLite noise = new FastNoiseLite();
            noise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
            noise.SetFrequency(0.05f);
-
+  
            //-> Creating Model Resources
            TextureData voxelTextureData = TextureUtils.GetDataFromNoise(512, 512, noise);
-
+  
            Material voxelMaterial = new Material(
                _renderer,
                new Texture2D(_renderer.DeviceContext, _renderer.CommandContext, voxelTextureData)
            );
            _renderer.RegisterMaterial(voxelMaterial);
-
+  
            MeshComponent voxelMesh = new()
            {
                Material = voxelMaterial,
@@ -192,20 +192,20 @@ public class DemoEngine : IDisposable
                    voxelIndices.ToArray()
                ),
            };
-
+  
            _renderer.RegisterMesh(voxelMesh.Mesh, voxelMesh.Material);
-
+  
         #endregion
         */
 
         /*
         #region Textured Voxel
-
+  
         //-> Gathering Model Vertices & Indices
         List<Vertex> texturedVoxelVertices = [];
         List<uint> texturedVoxelIndices = [];
         int texturedTotalFaces = 0;
-
+  
         foreach (VoxelFace voxelFace in Enum.GetValues<VoxelFace>())
         {
             texturedVoxelVertices.AddRange(
@@ -219,7 +219,7 @@ public class DemoEngine : IDisposable
             texturedVoxelIndices.AddRange(VoxelDataUtils.GetVoxelFaceIndices(texturedTotalFaces));
             texturedTotalFaces++;
         }
-
+  
         //-> Creating Model Resources
         Material texturedVoxelMaterial = new Material(
             _renderer,
@@ -232,7 +232,7 @@ public class DemoEngine : IDisposable
             )
         );
         _renderer.RegisterMaterial(texturedVoxelMaterial);
-
+  
         MeshComponent texturedVoxelMesh = new()
         {
             Material = texturedVoxelMaterial,
@@ -243,9 +243,9 @@ public class DemoEngine : IDisposable
                 texturedVoxelIndices.ToArray()
             ),
         };
-
+  
         _renderer.RegisterMesh(texturedVoxelMesh.Mesh, texturedVoxelMesh.Material);
-
+  
         #endregion
         */
 
@@ -261,7 +261,7 @@ public class DemoEngine : IDisposable
                 .ToArray(),
             Indices = Indices.ToArray(),
         };
-
+  
         vulkanRenderer.RegisterMesh(mesh2);
         */
 
@@ -452,6 +452,12 @@ public class DemoEngine : IDisposable
         _renderer.MainLoop();
     }
 
+    public void Dispose()
+    {
+        _renderer.Dispose();
+        _windowContext.Dispose();
+    }
+
     /*
     public unsafe List<(Mesh, Material)> LoadModel(string modelPath, string? texturePath = null)
     {
@@ -466,17 +472,17 @@ public class DemoEngine : IDisposable
                 | PostProcessSteps.GenerateUVCoords
             )
         );
-
+ 
         if (scene == null)
             throw new Exception("Could not load model: " + modelPath);
-
+ 
         List<(Mesh, Material)> parts = [];
-
+ 
         for (int meshIndex = 0; meshIndex < scene->MNumMeshes; meshIndex++)
         {
             Silk.NET.Assimp.Mesh* mesh = scene->MMeshes[meshIndex];
             Mesh loadedMesh = LoadMeshFromScene(scene, meshIndex);
-
+ 
             Material loadedMaterial;
             try
             {
@@ -488,7 +494,7 @@ public class DemoEngine : IDisposable
                     throw new Exception(
                         $"Mesh [{meshIndex}] has no embedded texture and no separate texture or fallback was provided"
                     );
-
+ 
                 loadedMaterial = new Material(
                     _renderer,
                     new Texture2D(
@@ -498,12 +504,12 @@ public class DemoEngine : IDisposable
                     )
                 );
             }
-
+ 
             parts.Add((loadedMesh, loadedMaterial));
         }
-
+ 
         _assimp.ReleaseImport(scene);
-
+ 
         return parts;
     }
     */
@@ -538,9 +544,7 @@ public class DemoEngine : IDisposable
         {
             var face = mesh->MFaces[faceIndex];
             for (int indexIndex = 0; indexIndex < face.MNumIndices; indexIndex++)
-            {
                 indices.Add(face.MIndices[indexIndex]);
-            }
         }
 
         return new Mesh(
@@ -555,7 +559,7 @@ public class DemoEngine : IDisposable
     private unsafe Material LoadMaterialFromScene(Scene* scene, int materialIndex)
     {
         Silk.NET.Assimp.Material* material = scene->MMaterials[materialIndex];
-
+ 
         AssimpString texturePath;
         _assimp.GetMaterialTexture(
             material,
@@ -569,16 +573,16 @@ public class DemoEngine : IDisposable
             null,
             null
         );
-
+ 
         Texture* modelTexture = _assimp.GetEmbeddedTexture(scene, texturePath.AsString);
-
+ 
         if (modelTexture == null)
             throw new Exception("Could not load model texture");
-
+ 
         byte[] pixelData;
         int width,
             height;
-
+ 
         // Checks if the texture is compressed (put simply, everything in a line)
         if (modelTexture->MHeight == 0)
         {
@@ -590,10 +594,10 @@ public class DemoEngine : IDisposable
                 compressedBytes.ToArray(),
                 ColorComponents.RedGreenBlueAlpha
             );
-
+ 
             width = result.Width;
             height = result.Height;
-
+ 
             pixelData = new byte[width * height * 4];
             result.Data.CopyTo(pixelData);
         }
@@ -601,10 +605,10 @@ public class DemoEngine : IDisposable
         {
             width = (int)modelTexture->MWidth;
             height = (int)modelTexture->MHeight;
-
+ 
             pixelData = new byte[width * height * 4];
             ReadOnlySpan<Texel> texels = new(modelTexture->PcData, width * height);
-
+ 
             for (int texelIndex = 0; texelIndex < texels.Length; texelIndex++)
             {
                 pixelData[texelIndex * 4] = texels[texelIndex].R;
@@ -613,9 +617,9 @@ public class DemoEngine : IDisposable
                 pixelData[texelIndex * 4 + 3] = texels[texelIndex].A;
             }
         }
-
+ 
         TextureData textureData = new TextureData(width, height, pixelData);
-
+ 
         Texture2D materialTexture = new(
             _renderer.DeviceContext,
             _renderer.CommandContext,
@@ -628,9 +632,7 @@ public class DemoEngine : IDisposable
     private void InputManagerOnKeyPressed(object? sender, Key key)
     {
         if (key == Key.Escape)
-        {
             _windowContext.Handle.Close();
-        }
     }
 
     private void HandleOnRender(double deltaTime)
@@ -653,11 +655,5 @@ public class DemoEngine : IDisposable
     private void HandleOnUpdate(double deltaTime)
     {
         _mainCamera.Update(deltaTime);
-    }
-
-    public void Dispose()
-    {
-        _renderer.Dispose();
-        _windowContext.Dispose();
     }
 }

@@ -21,18 +21,16 @@ public static class TextureUtils
     {
         byte[] noiseData = new byte[width * height * 4];
         for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
         {
-            for (int x = 0; x < width; x++)
-            {
-                float noiseValue = noise.GetNoise(x, y);
-                byte mappedValue = (byte)((noiseValue + 1f) / 2f * 255f);
+            float noiseValue = noise.GetNoise(x, y);
+            byte mappedValue = (byte)((noiseValue + 1f) / 2f * 255f);
 
-                int i = (x + y * width) * 4;
-                noiseData[i] = mappedValue;
-                noiseData[i + 1] = mappedValue;
-                noiseData[i + 2] = mappedValue;
-                noiseData[i + 3] = 255;
-            }
+            int i = (x + y * width) * 4;
+            noiseData[i] = mappedValue;
+            noiseData[i + 1] = mappedValue;
+            noiseData[i + 2] = mappedValue;
+            noiseData[i + 3] = 255;
         }
 
         return new TextureData(width, height, noiseData);

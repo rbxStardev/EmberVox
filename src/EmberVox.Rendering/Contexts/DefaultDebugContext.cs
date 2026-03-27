@@ -8,9 +8,6 @@ namespace EmberVox.Rendering.Contexts;
 
 internal sealed class DefaultDebugContext : IResource
 {
-    public ExtDebugUtils DebugUtilsExtension { get; }
-    public DebugUtilsMessengerEXT DebugMessenger { get; }
-
     private readonly Instance _instance;
 
     public DefaultDebugContext(Vk vk, Instance instance)
@@ -23,6 +20,9 @@ internal sealed class DefaultDebugContext : IResource
         DebugUtilsExtension = debugUtilsExtension;
         DebugMessenger = CreateDebugMessenger();
     }
+
+    public ExtDebugUtils DebugUtilsExtension { get; }
+    public DebugUtilsMessengerEXT DebugMessenger { get; }
 
     public void Dispose()
     {

@@ -6,14 +6,11 @@ namespace EmberVox.Rendering.Contexts;
 
 public class DepthContext : IResource
 {
-    public Image DepthImage { get; }
-    public ImageView DepthImageView { get; }
-    public Format DepthImageFormat { get; }
+    private readonly DeviceMemory _depthImageMemory;
 
     private readonly DeviceContext _deviceContext;
-    private readonly SwapChainContext _swapChainContext;
     private readonly MemoryRequirements _memoryRequirements;
-    private readonly DeviceMemory _depthImageMemory;
+    private readonly SwapChainContext _swapChainContext;
 
     public DepthContext(DeviceContext deviceContext, SwapChainContext swapChainContext)
     {
@@ -59,6 +56,10 @@ public class DepthContext : IResource
             ImageAspectFlags.DepthBit
         );
     }
+
+    public Image DepthImage { get; }
+    public ImageView DepthImageView { get; }
+    public Format DepthImageFormat { get; }
 
     public void Dispose()
     {

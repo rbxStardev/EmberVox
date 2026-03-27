@@ -6,6 +6,20 @@ namespace EmberVox.Engine;
 
 public class Camera
 {
+    private bool _firstMouseMove = true;
+    private Vector2 _lastMousePosition = Vector2.Zero;
+    private float _pitch;
+
+    private float _yaw = -90.0f;
+
+    public Camera()
+    {
+        TransformComponent = new TransformComponent();
+
+        InputManager.MouseMoved += InputManagerOnMouseMoved;
+        InputManager.MouseScrolled += InputManagerOnMouseScrolled;
+    }
+
     public TransformComponent TransformComponent { get; set; }
     public float FieldOfView { get; set; } = 70.0f;
 
@@ -17,19 +31,6 @@ public class Camera
     private Vector3 Front => Vector3.Transform(-Vector3.UnitZ, TransformComponent.Rotation);
     private Vector3 Right => Vector3.Transform(Vector3.UnitX, TransformComponent.Rotation);
     private Vector3 Up => Vector3.Transform(Vector3.UnitY, TransformComponent.Rotation);
-
-    private float _yaw = -90.0f;
-    private float _pitch;
-    private bool _firstMouseMove = true;
-    private Vector2 _lastMousePosition = Vector2.Zero;
-
-    public Camera()
-    {
-        TransformComponent = new TransformComponent();
-
-        InputManager.MouseMoved += InputManagerOnMouseMoved;
-        InputManager.MouseScrolled += InputManagerOnMouseScrolled;
-    }
 
     public void Update(double deltaTime)
     {
@@ -44,9 +45,7 @@ public class Camera
         velocity += Vector3.UnitY * flyDirection;
 
         if (velocity != Vector3.Zero)
-        {
             velocity = Vector3.Normalize(velocity) * MovementSpeed;
-        }
 
         TransformComponent = TransformComponent with
         {

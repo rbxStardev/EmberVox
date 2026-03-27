@@ -7,12 +7,9 @@ namespace EmberVox.Rendering.Contexts;
 
 public sealed class CommandContext : IResource
 {
-    public CommandPool MainCommandPool { get; }
-    public CommandBuffer[] CommandBuffers { get; }
-
     private readonly DeviceContext _deviceContext;
-    private readonly SwapChainContext _swapChainContext;
     private readonly uint _maxFramesInFlight;
+    private readonly SwapChainContext _swapChainContext;
 
     public CommandContext(
         DeviceContext deviceContext,
@@ -29,6 +26,9 @@ public sealed class CommandContext : IResource
 
         CreateCommandBuffers(MainCommandPool, _maxFramesInFlight, CommandBuffers);
     }
+
+    public CommandPool MainCommandPool { get; }
+    public CommandBuffer[] CommandBuffers { get; }
 
     public void Dispose()
     {

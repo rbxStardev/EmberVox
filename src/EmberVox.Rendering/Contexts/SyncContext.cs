@@ -6,13 +6,9 @@ namespace EmberVox.Rendering.Contexts;
 
 public sealed class SyncContext : IResource
 {
-    public Semaphore[] PresentCompleteSemaphores { get; }
-    public Semaphore[] RenderFinishedSemaphores { get; }
-    public Fence[] InFlightFences { get; }
-
     private readonly DeviceContext _deviceContext;
-    private readonly SwapChainContext _swapChainContext;
     private readonly uint _maxFramesInFlight;
+    private readonly SwapChainContext _swapChainContext;
 
     public SyncContext(
         DeviceContext deviceContext,
@@ -30,6 +26,10 @@ public sealed class SyncContext : IResource
 
         CreateSyncObjects();
     }
+
+    public Semaphore[] PresentCompleteSemaphores { get; }
+    public Semaphore[] RenderFinishedSemaphores { get; }
+    public Fence[] InFlightFences { get; }
 
     public void Dispose()
     {

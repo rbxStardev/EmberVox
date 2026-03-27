@@ -11,10 +11,6 @@ namespace EmberVox.Rendering.ShaderReflection;
 
 public class ShaderReflector : IDisposable
 {
-    public ShaderStageFlags StageFlags => (ShaderStageFlags)_reflectModule.ShaderStage;
-    public string EntryPoint { get; }
-    public byte[] CompiledShaderCode { get; }
-
     private readonly Reflect _reflect;
     private ReflectShaderModule _reflectModule;
 
@@ -34,6 +30,10 @@ public class ShaderReflector : IDisposable
 
         Logger.Info?.WriteLine("-----> Shader reflection: OK <-----");
     }
+
+    public ShaderStageFlags StageFlags => (ShaderStageFlags)_reflectModule.ShaderStage;
+    public string EntryPoint { get; }
+    public byte[] CompiledShaderCode { get; }
 
     public void Dispose()
     {
@@ -144,9 +144,7 @@ public class ShaderReflector : IDisposable
             var pVariable = ppInterfaceVariables[i];
 
             if (pVariable->BuiltIn == 0) //pVariable->Location == 0xFFFFFFFF
-            {
                 continue;
-            }
 
             result[writeIndex++] = new ShaderVariable
             {
@@ -195,9 +193,7 @@ public class ShaderReflector : IDisposable
                 new Span<ReflectShaderModule>(ref reflectionModule)
             ) != Result.Success
         )
-        {
             throw new Exception("Failed to reflect shader module");
-        }
 
         return reflectionModule;
     }
@@ -212,7 +208,7 @@ public class ShaderReflector : IDisposable
             descriptorBindingCount,
             null
         );
-
+ 
         DescriptorBinding** ppDescriptorBindings =
             stackalloc DescriptorBinding*[(int)descriptorBindingCount[0]];
         _reflect.EnumerateDescriptorBindings(
@@ -221,7 +217,7 @@ public class ShaderReflector : IDisposable
             ppDescriptorBindings
         );
         Logger.Metric?.WriteLine($"-> Descriptor bindings reflected: {descriptorBindingCount[0]}");
-
+ 
         uint totalUniformBufferSize = 0;
         for (int i = 0; i < descriptorBindingCount[0]; i++)
         {
@@ -235,16 +231,16 @@ public class ShaderReflector : IDisposable
                 BindingType = (DescriptorType)pDescriptor->DescriptorType,
                 Name = pDescriptor->Name,
             };
-
+ 
             Logger.Metric?.WriteLine(
                 $"-> Binding \"{new string((sbyte*)descriptorBinding.Name)}\": set={descriptorBinding.SetIndex} binding={descriptorBinding.BindingIndex} type={descriptorBinding.BindingType}"
             );
-
+ 
             if (descriptorBinding.BindingType == DescriptorType.UniformBuffer)
             {
                 totalUniformBufferSize += descriptorBinding.Stride;
             }
-
+ 
             DescriptorBindingsByName[new string((sbyte*)pDescriptor->Name)] = descriptorBinding;
         }
         UniformBufferSize = totalUniformBufferSize;
@@ -261,7 +257,7 @@ public class ShaderReflector : IDisposable
             inputVariableCount,
             null
         );
-
+ 
         InterfaceVariable** ppInterfaceVariables =
             stackalloc InterfaceVariable*[(int)inputVariableCount[0]];
         _reflect.EnumerateInputVariables(
@@ -270,25 +266,25 @@ public class ShaderReflector : IDisposable
             ppInterfaceVariables
         );
         Logger.Metric?.WriteLine($"-> Input variables reflected: {inputVariableCount[0]}");
-
+ 
         for (int i = 0; i < inputVariableCount[0]; i++)
         {
             InterfaceVariable* pVariable = ppInterfaceVariables[i];
-
+ 
             // Skip built-in variables JUST IN CAAAAAAAAAAAAASE there happens to be one
             if (pVariable->Location == 0xFFFFFFFF)
             {
                 Logger.Debug?.WriteLine($"Skipping built-in input variable at index {i}.");
                 continue;
             }
-
+ 
             ShaderVariable variable = new ShaderVariable
             {
                 Location = pVariable->Location,
                 Format = (Format)pVariable->Format,
                 Stride = FormatUtils.GetSpirvFormatSize(pVariable->Format),
             };
-
+ 
             InputVariablesByName[new string((sbyte*)pVariable->Name)] = variable;
         }
     }
@@ -304,7 +300,7 @@ public class ShaderReflector : IDisposable
             outputVariableCount,
             null
         );
-
+ 
         InterfaceVariable** ppInterfaceVariables =
             stackalloc InterfaceVariable*[(int)outputVariableCount[0]];
         _reflect.EnumerateOutputVariables(
@@ -313,24 +309,24 @@ public class ShaderReflector : IDisposable
             ppInterfaceVariables
         );
         Logger.Metric?.WriteLine($"-> Output variables reflected: {outputVariableCount[0]}");
-
+ 
         for (int i = 0; i < outputVariableCount[0]; i++)
         {
             InterfaceVariable* pVariable = ppInterfaceVariables[i];
-
+ 
             if (pVariable->Location == 0xFFFFFFFF)
             {
                 Logger.Debug?.WriteLine($"Skipping built-in output variable at index {i}.");
                 continue;
             }
-
+ 
             ShaderVariable variable = new ShaderVariable
             {
                 Location = pVariable->Location,
                 Format = (Format)pVariable->Format,
                 Stride = FormatUtils.GetSpirvFormatSize(pVariable->Format),
             };
-
+ 
             OutputVariablesByName[new string((sbyte*)pVariable->Name)] = variable;
         }
     }

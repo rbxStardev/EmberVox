@@ -9,19 +9,13 @@ namespace EmberVox.Rendering.Contexts;
 
 public sealed class SwapChainContext : IResource
 {
-    public KhrSwapchain KhrSwapChainExtension { get; }
-    public SwapchainKHR SwapChainKhr { get; private set; }
-    public Image[] SwapChainImages { get; private set; }
-    public ImageView[] SwapChainImageViews { get; private set; }
-    public Format SwapChainImageFormat { get; }
-    public Extent2D SwapChainExtent { get; private set; }
+    private readonly DeviceContext _deviceContext;
+    private readonly Instance _instance;
+    private readonly PresentModeKHR _presentMode;
 
     private readonly SurfaceContext _surfaceContext;
-    private readonly DeviceContext _deviceContext;
-    private readonly IWindow _window;
-    private readonly Instance _instance;
     private readonly SurfaceFormatKHR _surfaceFormat;
-    private readonly PresentModeKHR _presentMode;
+    private readonly IWindow _window;
     private SurfaceCapabilitiesKHR _surfaceCapabilities;
 
     public SwapChainContext(
@@ -64,6 +58,13 @@ public sealed class SwapChainContext : IResource
         Logger.Metric?.WriteLine($"SwapChain Images: {SwapChainImages.Length}");
         Logger.Metric?.WriteLine($"SwapChain Image Views: {SwapChainImageViews.Length}");
     }
+
+    public KhrSwapchain KhrSwapChainExtension { get; }
+    public SwapchainKHR SwapChainKhr { get; private set; }
+    public Image[] SwapChainImages { get; private set; }
+    public ImageView[] SwapChainImageViews { get; private set; }
+    public Format SwapChainImageFormat { get; }
+    public Extent2D SwapChainExtent { get; private set; }
 
     public void Dispose()
     {
@@ -193,13 +194,11 @@ public sealed class SwapChainContext : IResource
         );
 
         foreach (var format in formats)
-        {
             if (
                 format is
                 { Format: Format.B8G8R8A8Srgb, ColorSpace: ColorSpaceKHR.SpaceSrgbNonlinearKhr }
             )
                 return format;
-        }
 
         return formats[0];
     }
@@ -223,10 +222,8 @@ public sealed class SwapChainContext : IResource
         );
 
         foreach (var presentMode in presentModes)
-        {
             if (presentMode is PresentModeKHR.MailboxKhr)
                 return presentMode;
-        }
 
         return PresentModeKHR.FifoKhr;
     }

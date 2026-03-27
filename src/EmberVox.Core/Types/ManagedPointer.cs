@@ -8,15 +8,6 @@ namespace EmberVox.Core.Types;
 public sealed unsafe class ManagedPointer<T> : MemoryManager<T>, IEnumerable<T>
     where T : unmanaged
 {
-    public int Length { get; }
-    public int Alignment { get; }
-    public T* Pointer { get; }
-    public Span<T> Span => Pointer != null ? new Span<T>(Pointer, Length) : [];
-    public int LengthInBytes => Length * sizeof(T);
-
-    // TODO - ToIndexable
-    public ref T this[int index] => ref GetElementUnsafe(index);
-
     private bool _disposedValue;
 
     public ManagedPointer(int length, int alignment = 0)
@@ -24,9 +15,7 @@ public sealed unsafe class ManagedPointer<T> : MemoryManager<T>, IEnumerable<T>
         Length = length;
         Alignment = alignment;
         if (length <= 0)
-        {
             return;
-        }
 
         if (alignment == 0)
         {
@@ -43,15 +32,38 @@ public sealed unsafe class ManagedPointer<T> : MemoryManager<T>, IEnumerable<T>
         GC.AddMemoryPressure(LengthInBytes);
     }
 
+    public int Length { get; }
+    public int Alignment { get; }
+    public T* Pointer { get; }
+    public Span<T> Span => Pointer != null ? new Span<T>(Pointer, Length) : [];
+    public int LengthInBytes => Length * sizeof(T);
+
     // TODO - ToIndexable
-    ref T GetElementUnsafe(int index)
+    public ref T this[int index] => ref GetElementUnsafe(index);
+
+    public IEnumerator<T> GetEnumerator()
+    {
+        for (int i = 0; i < Length; i++)
+            yield return GetElementUnsafe(i);
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    // TODO - ToIndexable
+    private ref T GetElementUnsafe(int index)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Length);
         return ref Pointer[index];
     }
 
     // TODO - ToIndexable
-    public ref readonly T TryGetReadOnlyRef(int index) => ref GetElementUnsafe(index);
+    public ref readonly T TryGetReadOnlyRef(int index)
+    {
+        return ref GetElementUnsafe(index);
+    }
 
     public bool TryGetSpanUnsafe(out Span<T> span)
     {
@@ -59,29 +71,20 @@ public sealed unsafe class ManagedPointer<T> : MemoryManager<T>, IEnumerable<T>
         return span.Length > 0;
     }
 
-    public override Span<T> GetSpan() => Span;
+    public override Span<T> GetSpan()
+    {
+        return Span;
+    }
 
     public override MemoryHandle Pin(int elementIndex = 0)
     {
         if (elementIndex < 0 || elementIndex >= Length)
-        {
             throw new ArgumentOutOfRangeException(nameof(elementIndex));
-        }
 
         return new MemoryHandle(Pointer + elementIndex);
     }
 
     public override void Unpin() { }
-
-    public IEnumerator<T> GetEnumerator()
-    {
-        for (int i = 0; i < Length; i++)
-        {
-            yield return GetElementUnsafe(i);
-        }
-    }
-
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     #region Disposal
 
@@ -108,13 +111,9 @@ public sealed unsafe class ManagedPointer<T> : MemoryManager<T>, IEnumerable<T>
             if (Pointer != null)
             {
                 if (Alignment != 0)
-                {
                     NativeMemory.AlignedFree(Pointer);
-                }
                 else
-                {
                     NativeMemory.Free(Pointer);
-                }
                 GC.RemoveMemoryPressure(LengthInBytes);
             }
 

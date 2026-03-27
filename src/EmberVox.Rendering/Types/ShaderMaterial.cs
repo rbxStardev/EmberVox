@@ -13,13 +13,10 @@ namespace EmberVox.Rendering.Types;
 
 public class ShaderMaterial : IResource
 {
-    public NewGraphicsPipeline GraphicsPipeline { get; }
-    public NewDescriptorContext DescriptorContext { get; }
-
     private readonly DeviceContext _deviceContext;
+    private readonly IDictionary<(uint set, uint binding), ShaderDescriptor> _shaderDescriptors;
     private readonly SwapChainContext _swapChainContext;
     private readonly BufferContext[] _uniformBuffers;
-    private readonly IDictionary<(uint set, uint binding), ShaderDescriptor> _shaderDescriptors;
 
     public unsafe ShaderMaterial(
         DeviceContext deviceContext,
@@ -46,39 +43,30 @@ public class ShaderMaterial : IResource
         _shaderDescriptors = new Dictionary<(uint set, uint binding), ShaderDescriptor>();
 
         foreach (var shaderDescriptor in vertReflector.GetShaderDescriptors())
-        {
             _shaderDescriptors[(shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex)] =
                 shaderDescriptor;
-        }
 
         foreach (var shaderDescriptor in fragReflector.GetShaderDescriptors())
-        {
             if (
                 _shaderDescriptors.TryGetValue(
                     (shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex),
                     out var existingShaderDescriptor
                 )
             )
-            {
                 _shaderDescriptors[(shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex)] =
                     existingShaderDescriptor with
                     {
                         StageFlags =
                             existingShaderDescriptor.StageFlags | shaderDescriptor.StageFlags,
                     };
-            }
             else
-            {
                 _shaderDescriptors[(shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex)] =
                     shaderDescriptor;
-            }
-        }
+
         Logger.Metric?.WriteLine($"Descriptors reflected: {_shaderDescriptors.Count}");
 
         foreach (var shaderDescriptor in _shaderDescriptors.Values)
-        {
             Logger.Metric?.WriteLine($"-> {shaderDescriptor}");
-        }
 
         DescriptorContext = new NewDescriptorContext(
             deviceContext,
@@ -117,9 +105,7 @@ public class ShaderMaterial : IResource
         _uniformBuffers = CreateUniformBuffers(deviceContext, swapChainContext, totalUboSize);
 
         foreach (var mergedDescriptor in _shaderDescriptors.Values)
-        {
             if (mergedDescriptor.BindingType == DescriptorType.UniformBuffer)
-            {
                 for (int i = 0; i < swapChainContext.SwapChainImages.Length; i++)
                 {
                     DescriptorBufferInfo bufferInfo = new()
@@ -146,17 +132,16 @@ public class ShaderMaterial : IResource
                         ReadOnlySpan<CopyDescriptorSet>.Empty
                     );
                 }
-            }
-        }
     }
+
+    public NewGraphicsPipeline GraphicsPipeline { get; }
+    public NewDescriptorContext DescriptorContext { get; }
 
     public void Dispose()
     {
         DescriptorContext.Dispose();
         foreach (var uniformBuffer in _uniformBuffers)
-        {
             uniformBuffer.Dispose();
-        }
         GraphicsPipeline.Dispose();
     }
 

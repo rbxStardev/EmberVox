@@ -6,16 +6,16 @@ namespace EmberVox.Rendering.Types;
 
 public class ShaderMaterialBuilder
 {
-    private DeviceContext _deviceContext = null!;
-    private SwapChainContext _swapChainContext = null!;
-    private byte[] _vertexShaderCode = null!;
-    private byte[] _fragmentShaderCode = null!;
-    private PrimitiveTopology _primitiveTopology;
-    private TargetInfo _targetInfo;
-    private VertexInputRate _inputRate;
-    private RasterizerState _rasterizerState;
-    private MultisampleState _multisampleState;
     private DepthStencilState _depthStencilState;
+    private DeviceContext _deviceContext = null!;
+    private byte[] _fragmentShaderCode = null!;
+    private VertexInputRate _inputRate;
+    private MultisampleState _multisampleState;
+    private PrimitiveTopology _primitiveTopology;
+    private RasterizerState _rasterizerState;
+    private SwapChainContext _swapChainContext = null!;
+    private TargetInfo _targetInfo;
+    private byte[] _vertexShaderCode = null!;
 
     private ShaderMaterialBuilder() { }
 

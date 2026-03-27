@@ -7,27 +7,6 @@ internal static class VoxelTextureUtils
     //TODO -> try texture arrays instead of texture atlases
     private const int AtlasSize = 16;
 
-    private static Vector2[] GetUnmappedUVs()
-    {
-        return [new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1)];
-    }
-
-    private static Vector2[] GetAtlasUVs(int column, int row)
-    {
-        const float size = 1.0f / AtlasSize;
-
-        float u = column * size;
-        float v = 1.0f - (row + 1) * size;
-
-        return
-        [
-            new Vector2(u, v),
-            new Vector2(u + size, v),
-            new Vector2(u + size, v + size),
-            new Vector2(u, v + size),
-        ];
-    }
-
     private static readonly Dictionary<VoxelType, Vector2[]> DefaultVoxelUVs = new()
     {
         { VoxelType.Dirt, GetAtlasUVs(2, 0) },
@@ -49,6 +28,27 @@ internal static class VoxelTextureUtils
             }
         },
     };
+
+    private static Vector2[] GetUnmappedUVs()
+    {
+        return [new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1)];
+    }
+
+    private static Vector2[] GetAtlasUVs(int column, int row)
+    {
+        const float size = 1.0f / AtlasSize;
+
+        float u = column * size;
+        float v = 1.0f - (row + 1) * size;
+
+        return
+        [
+            new Vector2(u, v),
+            new Vector2(u + size, v),
+            new Vector2(u + size, v + size),
+            new Vector2(u, v + size),
+        ];
+    }
 
     public static Vector2[] GetUVs(VoxelType voxelType, VoxelFace voxelFace, bool mapped)
     {

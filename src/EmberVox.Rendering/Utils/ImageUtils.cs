@@ -59,9 +59,7 @@ internal static class ImageUtils
             SubresourceRange = new ImageSubresourceRange(aspectFlags, 0, mipLevels, 0, 1),
         };
         if (image != null)
-        {
             viewInfo.Image = (Image)image;
-        }
 
         ImageView imageView = default;
         vk.CreateImageView(
@@ -96,9 +94,7 @@ internal static class ImageUtils
                 & FormatFeatureFlags.SampledImageFilterLinearBit
             ) == 0
         )
-        {
             throw new Exception("Texture image format does not support linear blitting!");
-        }
 
         var commandBuffer = commandContext.BeginSingleTimeCommands();
 

@@ -7,15 +7,13 @@ namespace EmberVox.Rendering.RenderingManagement;
 
 public class Texture2D : IRenderable
 {
-    public Sampler Sampler { get; }
-    public ImageView ImageView { get; }
+    private readonly CommandContext _commandContext;
 
     private readonly DeviceContext _deviceContext;
-    private readonly CommandContext _commandContext;
+    private readonly MemoryRequirements _memoryRequirements;
     private readonly uint _mipLevels;
     private readonly Image _textureImage;
     private readonly DeviceMemory _textureImageMemory;
-    private readonly MemoryRequirements _memoryRequirements;
 
     public Texture2D(
         DeviceContext deviceContext,
@@ -102,6 +100,9 @@ public class Texture2D : IRenderable
 
         stagingBuffer.Dispose();
     }
+
+    public Sampler Sampler { get; }
+    public ImageView ImageView { get; }
 
     public void Dispose()
     {

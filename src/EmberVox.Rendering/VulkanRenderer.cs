@@ -177,7 +177,10 @@ public sealed class VulkanRenderer : IDisposable
         ResourceManager.SubmitResource(mesh);
     }
 
-    public void WindowOnFramebufferResize() => _frameBufferResized = true;
+    public void WindowOnFramebufferResize()
+    {
+        _frameBufferResized = true;
+    }
 
     public unsafe void WindowOnRender(double deltaTime, Matrix4x4 view, Matrix4x4 projection)
     {
