@@ -1,20 +1,15 @@
 using System.Diagnostics;
 using System.Numerics;
-using System.Runtime.CompilerServices;
-using EmberVox.Core.Extensions;
 using EmberVox.Core.Logging;
 using EmberVox.Platform;
-using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Types;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
-using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 using Buffer = Silk.NET.Vulkan.Buffer;
-using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering;
 
@@ -24,8 +19,6 @@ namespace EmberVox.Rendering;
 public sealed class VulkanRenderer : IDisposable
 {
     private static readonly string[] ValidationLayers = ["VK_LAYER_KHRONOS_validation"];
-
-    private static readonly long StartTime = Stopwatch.GetTimestamp();
 
     private const int MaxFramesInFlight = 2;
 #if DEBUG
@@ -51,16 +44,15 @@ public sealed class VulkanRenderer : IDisposable
 
     //private readonly BufferContext _vertexBuffer;
     //private readonly BufferContext _indexBuffer;
-    public readonly List<BufferContext> UniformBuffers;
 
-    private readonly Dictionary<Material, List<Mesh>> _meshesToRender = [];
+    private readonly Dictionary<ShaderMaterial, List<Mesh>> _meshesToRender = [];
 
     private int _frameIndex;
     private bool _frameBufferResized;
 
     public VulkanRenderer(WindowContext window)
     {
-        Vk vk = Vk.GetApi();
+        var vk = Vk.GetApi();
         _windowContext = window;
 
         Logger.Info?.WriteLine("~ Initializing Vulkan... ~");
@@ -118,13 +110,6 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Info?.WriteLine("~ Initializing Buffers... ~");
         Console.WriteLine();
 
-        {
-            // Uniforms
-
-            UniformBuffers = [];
-            CreateUniformBuffers();
-        }
-
         Logger.Info?.WriteLine("~ Buffers successfully initialized. ~");
         Console.WriteLine();
 
@@ -139,12 +124,6 @@ public sealed class VulkanRenderer : IDisposable
 
         {
             ResourceManager.Dispose();
-
-            foreach (BufferContext uniformBuffer in UniformBuffers)
-            {
-                uniformBuffer.Dispose();
-                Logger.Debug?.WriteLine("-> Disposed UniformBuffer");
-            }
 
             SyncContext.Dispose();
             Logger.Debug?.WriteLine("-> Disposed SyncContext");
@@ -181,40 +160,36 @@ public sealed class VulkanRenderer : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private void PlugEvents()
-    {
-        //_windowContext.Handle.Render += WindowOnRender;
-        //_windowContext.Handle.FramebufferResize += WindowOnFramebufferResize;
-    }
-
     public void MainLoop()
     {
         DeviceContext.Api.DeviceWaitIdle(DeviceContext.LogicalDevice);
     }
 
-    public void RegisterMaterial(Material material)
+    public void RegisterShaderMaterial(ShaderMaterial shaderMaterial)
     {
-        _meshesToRender[material] = [];
-        ResourceManager.SubmitResource(material.GraphicsPipelineContext);
-        ResourceManager.SubmitResource(material.Renderable);
+        _meshesToRender[shaderMaterial] = [];
+        ResourceManager.SubmitResource(shaderMaterial);
     }
 
-    public void RegisterMesh(Mesh mesh, Material material)
+    public void RegisterMesh(Mesh mesh, ShaderMaterial material)
     {
         _meshesToRender[material].Add(mesh);
         ResourceManager.SubmitResource(mesh);
     }
 
-    public void WindowOnFramebufferResize(Vector2D<int> newSize) => _frameBufferResized = true;
+    public void WindowOnFramebufferResize()
+    {
+        _frameBufferResized = true;
+    }
 
     public unsafe void WindowOnRender(double deltaTime, Matrix4x4 view, Matrix4x4 projection)
     {
         _windowContext.Handle.Title = $"EmberVox: Vulkan - {(int)(1.0 / deltaTime)} FPS";
 
-        Semaphore presentCompleteSemaphore = SyncContext.PresentCompleteSemaphores[_frameIndex];
-        Fence drawFence = SyncContext.InFlightFences[_frameIndex];
-        CommandBuffer commandBuffer = CommandContext.CommandBuffers[_frameIndex];
-        SwapchainKHR swapchain = SwapChainContext.SwapChainKhr;
+        var presentCompleteSemaphore = SyncContext.PresentCompleteSemaphores[_frameIndex];
+        var drawFence = SyncContext.InFlightFences[_frameIndex];
+        var commandBuffer = CommandContext.CommandBuffers[_frameIndex];
+        var swapchain = SwapChainContext.SwapChainKhr;
 
         if (
             DeviceContext.Api.WaitForFences(
@@ -227,12 +202,12 @@ public sealed class VulkanRenderer : IDisposable
             throw new Exception("Failed to wait for fence!");
 
         uint imageIndex = 0;
-        Result result = SwapChainContext.KhrSwapChainExtension.AcquireNextImage(
+        var result = SwapChainContext.KhrSwapChainExtension.AcquireNextImage(
             DeviceContext.LogicalDevice,
             SwapChainContext.SwapChainKhr,
             ulong.MaxValue,
             presentCompleteSemaphore,
-            default,
+            new Fence(),
             ref imageIndex
         );
 
@@ -248,7 +223,7 @@ public sealed class VulkanRenderer : IDisposable
             throw new Exception("Failed to acquire swap chain image!");
         }
 
-        Semaphore renderFinishedSemaphore = SyncContext.RenderFinishedSemaphores[imageIndex];
+        var renderFinishedSemaphore = SyncContext.RenderFinishedSemaphores[imageIndex];
 
         DeviceContext.Api.ResetFences(
             DeviceContext.LogicalDevice,
@@ -267,30 +242,47 @@ public sealed class VulkanRenderer : IDisposable
         */
         CommandContext.BeginCommandBufferRecording(DepthContext, imageIndex, _frameIndex);
 
-        foreach (KeyValuePair<Material, List<Mesh>> keyValuePair in _meshesToRender)
+        foreach (var keyValuePair in _meshesToRender)
         {
+            UniformBufferObject uniformBufferObject = new()
+            {
+                Model = Matrix4x4.CreateFromQuaternion(
+                    Quaternion.CreateFromAxisAngle(Vector3.UnitY, float.Pi)
+                ),
+                View = view,
+                Proj = projection,
+                //View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
+                /*Proj = Matrix4x4.CreatePerspectiveFieldOfView(
+                    float.DegreesToRadians(fieldOfView),
+                    (float)SwapChainContext.SwapChainExtent.Width
+                        / SwapChainContext.SwapChainExtent.Height,
+                    0.1f,
+                    500.0f
+                ),*/
+            };
+            var proj = uniformBufferObject.Proj;
+            proj.M22 *= -1; // Flip Y (DO NOT TURN OFFFFFF)
+            uniformBufferObject.Proj = proj;
+            keyValuePair.Key.SetShaderUniform((int)imageIndex, "ubo", uniformBufferObject);
+
             DeviceContext.Api.CmdBindPipeline(
                 commandBuffer,
                 PipelineBindPoint.Graphics,
-                keyValuePair.Key.GraphicsPipelineContext.GraphicsPipeline
+                keyValuePair.Key.GraphicsPipeline.Pipeline
             );
 
-            DescriptorSet descriptorSet = keyValuePair
-                .Key
-                .GraphicsPipelineContext
-                .DescriptorContext[(int)imageIndex];
             DeviceContext.Api.CmdBindDescriptorSets(
                 commandBuffer,
                 PipelineBindPoint.Graphics,
-                keyValuePair.Key.GraphicsPipelineContext.PipelineLayout,
+                keyValuePair.Key.GraphicsPipeline.PipelineLayout,
                 0,
-                new ReadOnlySpan<DescriptorSet>(ref descriptorSet),
+                keyValuePair.Key.DescriptorContext.GetDescriptorSets((int)imageIndex),
                 ReadOnlySpan<uint>.Empty
             );
 
-            foreach (Mesh mesh in keyValuePair.Value)
+            foreach (var mesh in keyValuePair.Value)
             {
-                Buffer vertexBuffer = mesh.VertexBuffer.Buffer;
+                var vertexBuffer = mesh.VertexBuffer.Buffer;
                 DeviceContext.Api.CmdBindVertexBuffers(
                     commandBuffer,
                     0,
@@ -298,7 +290,7 @@ public sealed class VulkanRenderer : IDisposable
                     new ReadOnlySpan<ulong>([0])
                 );
 
-                Buffer indexBuffer = mesh.IndexBuffer.Buffer;
+                var indexBuffer = mesh.IndexBuffer.Buffer;
                 DeviceContext.Api.CmdBindIndexBuffer(
                     commandBuffer,
                     indexBuffer,
@@ -312,9 +304,7 @@ public sealed class VulkanRenderer : IDisposable
 
         CommandContext.EndCommandBufferRecording(imageIndex, _frameIndex);
 
-        UpdateUniformBuffer((int)imageIndex, view, projection);
-
-        PipelineStageFlags waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
+        var waitDestinationStageMask = PipelineStageFlags.ColorAttachmentOutputBit;
         SubmitInfo submitInfo = new()
         {
             SType = StructureType.SubmitInfo,
@@ -380,53 +370,6 @@ public sealed class VulkanRenderer : IDisposable
         DepthContext = new DepthContext(DeviceContext, SwapChainContext);
     }
 
-    #region UniformBufferHandling
-
-    private void CreateUniformBuffers()
-    {
-        ulong bufferSize = (ulong)Unsafe.SizeOf<UniformBufferObject>();
-
-        for (int i = 0; i < SwapChainContext.SwapChainImages.Length; i++)
-        {
-            BufferContext uniformBuffer = new BufferContext(
-                DeviceContext,
-                bufferSize,
-                BufferUsageFlags.UniformBufferBit
-            );
-            UniformBuffers.Add(uniformBuffer);
-        }
-    }
-
-    private void UpdateUniformBuffer(int currentImage, Matrix4x4 view, Matrix4x4 projection)
-    {
-        UniformBufferObject uniformBufferObject = new()
-        {
-            Model = Matrix4x4.CreateFromQuaternion(
-                Quaternion.CreateFromAxisAngle(Vector3.UnitY, float.Pi)
-            ),
-            View = view,
-            Proj = projection,
-            //View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
-            /*Proj = Matrix4x4.CreatePerspectiveFieldOfView(
-                float.DegreesToRadians(fieldOfView),
-                (float)SwapChainContext.SwapChainExtent.Width
-                    / SwapChainContext.SwapChainExtent.Height,
-                0.1f,
-                500.0f
-            ),*/
-        };
-        var proj = uniformBufferObject.Proj;
-        proj.M22 *= -1; // Flip Y (DO NOT TURN OFFFFFF)
-        uniformBufferObject.Proj = proj;
-
-        uniformBufferObject.AsBytes().CopyTo(UniformBuffers[currentImage].MappedMemory);
-        /*Console.WriteLine(
-            $"Updating UBO frame {currentImage}, time: {time}, content: {_uniformBuffers[currentImage].MappedMemory.ToString()}]"
-        );*/
-    }
-
-    #endregion
-
     #region InstanceCreation
 
     private unsafe Instance CreateInstance(Vk vk)
@@ -473,7 +416,7 @@ public sealed class VulkanRenderer : IDisposable
             createInfo.PpEnabledLayerNames = (byte**)SilkMarshal.StringArrayToPtr(ValidationLayers);
         }
 
-        if (vk.CreateInstance(&createInfo, null, out Instance instance) != Result.Success)
+        if (vk.CreateInstance(&createInfo, null, out var instance) != Result.Success)
             throw new Exception("Failed to create Vulkan instance");
 
         SilkMarshal.Free((nint)appInfo.PApplicationName);
@@ -491,7 +434,7 @@ public sealed class VulkanRenderer : IDisposable
         Span<uint> layerCount = stackalloc uint[1];
         vk.EnumerateInstanceLayerProperties(layerCount, Span<LayerProperties>.Empty);
 
-        LayerProperties[] availableLayers = new LayerProperties[layerCount[0]];
+        var availableLayers = new LayerProperties[layerCount[0]];
         vk.EnumerateInstanceLayerProperties(layerCount, availableLayers.AsSpan());
 
         foreach (string required in ValidationLayers)
@@ -540,7 +483,7 @@ public sealed class VulkanRenderer : IDisposable
             Span<ExtensionProperties>.Empty
         );
 
-        ExtensionProperties[] extensionProperties = new ExtensionProperties[propertyCount[0]];
+        var extensionProperties = new ExtensionProperties[propertyCount[0]];
         vk.EnumerateInstanceExtensionProperties(
             ReadOnlySpan<byte>.Empty,
             propertyCount,

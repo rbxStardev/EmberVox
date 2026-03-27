@@ -4,11 +4,11 @@ namespace EmberVox.Sandbox;
 
 public static class Program
 {
-    public static void Main(string[] args)
+    public static void Main()
     {
         try
         {
-            using DemoEngine engine = new DemoEngine();
+            using var engine = new DemoEngine();
         }
         catch (Exception e)
         {

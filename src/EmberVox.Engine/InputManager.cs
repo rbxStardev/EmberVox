@@ -5,13 +5,12 @@ namespace EmberVox.Engine;
 
 public static class InputManager
 {
-    public static event EventHandler<Vector2>? MouseMoved;
-    public static event EventHandler<ScrollWheel>? MouseScrolled;
-    public static event EventHandler<Key>? KeyPressed;
-
     private static IInputContext _inputContext = null!;
     private static IKeyboard _mainKeyboard = null!;
     private static IMouse _mainMouse = null!;
+    public static event EventHandler<Vector2>? MouseMoved;
+    public static event EventHandler<ScrollWheel>? MouseScrolled;
+    public static event EventHandler<Key>? KeyPressed;
 
     public static void Initialize(IInputContext inputContext)
     {

@@ -6,6 +6,20 @@ namespace EmberVox.Engine;
 
 public class Camera
 {
+    private bool _firstMouseMove = true;
+    private Vector2 _lastMousePosition = Vector2.Zero;
+    private float _pitch;
+
+    private float _yaw = -90.0f;
+
+    public Camera()
+    {
+        TransformComponent = new TransformComponent();
+
+        InputManager.MouseMoved += InputManagerOnMouseMoved;
+        InputManager.MouseScrolled += InputManagerOnMouseScrolled;
+    }
+
     public TransformComponent TransformComponent { get; set; }
     public float FieldOfView { get; set; } = 70.0f;
 
@@ -18,35 +32,20 @@ public class Camera
     private Vector3 Right => Vector3.Transform(Vector3.UnitX, TransformComponent.Rotation);
     private Vector3 Up => Vector3.Transform(Vector3.UnitY, TransformComponent.Rotation);
 
-    private float _yaw = -90.0f;
-    private float _pitch = 0.0f;
-    private bool _firstMouseMove = true;
-    private Vector2 _lastMousePosition = Vector2.Zero;
-
-    public Camera()
-    {
-        TransformComponent = new TransformComponent();
-
-        InputManager.MouseMoved += InputManagerOnMouseMoved;
-        InputManager.MouseScrolled += InputManagerOnMouseScrolled;
-    }
-
     public void Update(double deltaTime)
     {
         float flyDirection = InputManager.GetInputKeysAxis(Key.ControlLeft, Key.Space);
-        Vector2 movementDirection = InputManager.GetInputKeysVector(Key.A, Key.D, Key.S, Key.W);
+        var movementDirection = InputManager.GetInputKeysVector(Key.A, Key.D, Key.S, Key.W);
 
         var flatFront = Vector3.Normalize(Front with { Y = 0.0f });
 
-        Vector3 velocity = Vector3.Zero;
+        var velocity = Vector3.Zero;
         velocity += flatFront * movementDirection.Y;
         velocity += Right * movementDirection.X;
         velocity += Vector3.UnitY * flyDirection;
 
         if (velocity != Vector3.Zero)
-        {
             velocity = Vector3.Normalize(velocity) * MovementSpeed;
-        }
 
         TransformComponent = TransformComponent with
         {
@@ -110,7 +109,7 @@ public class Camera
             _firstMouseMove = false;
         }
 
-        Vector2 offset = _lastMousePosition - position;
+        var offset = _lastMousePosition - position;
         _lastMousePosition = position;
 
         ProcessMouseMove(offset);

@@ -1,10 +1,10 @@
-namespace EmberVox.Engine.VoxelUtils;
+namespace EmberVox.Engine.Voxels;
 
 [Flags]
 public enum VoxelType : uint
 {
     Block = 1 << 0,
-    Air = 1 << 1 | Transparent,
+    Air = (1 << 1) | Transparent,
     Godot = 1 << 2,
     Dirt = 1 << 3,
     Grass = 1 << 4,

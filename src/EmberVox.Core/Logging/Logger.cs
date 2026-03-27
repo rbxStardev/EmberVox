@@ -6,12 +6,6 @@ namespace EmberVox.Core.Logging;
 
 public static class Logger
 {
-    public static Log? Debug { get; private set; }
-    public static Log? Error { get; private set; }
-    public static Log? Info { get; private set; }
-    public static Log? Metric { get; private set; }
-    public static Log? Warning { get; private set; }
-
     static Logger()
     {
         Debug = new Log(LogLevel.Debug);
@@ -21,8 +15,15 @@ public static class Logger
         Warning = new Log(LogLevel.Warning);
     }
 
-    static ConsoleColor GetLogColor(LogLevel level) =>
-        level switch
+    public static Log? Debug { get; private set; }
+    public static Log? Error { get; private set; }
+    public static Log? Info { get; private set; }
+    public static Log? Metric { get; private set; }
+    public static Log? Warning { get; private set; }
+
+    private static ConsoleColor GetLogColor(LogLevel level)
+    {
+        return level switch
         {
             LogLevel.Debug => ConsoleColor.Magenta,
             LogLevel.Error => ConsoleColor.Red,
@@ -31,6 +32,7 @@ public static class Logger
             LogLevel.Warning => ConsoleColor.Yellow,
             _ => ConsoleColor.Gray,
         };
+    }
 
     public readonly struct Log
     {
@@ -71,16 +73,14 @@ public static class Logger
 
         public void Write(ReadOnlySpan<byte> utf8)
         {
-            var length = Encoding.UTF8.GetMaxCharCount(utf8.Length);
+            int length = Encoding.UTF8.GetMaxCharCount(utf8.Length);
             char[]? array = null;
             if (length >= 2048)
-            {
                 array = ArrayPool<char>.Shared.Rent(length);
-            }
             var dst = array ?? stackalloc char[length];
             try
             {
-                Encoding.UTF8.TryGetChars(utf8, dst, out var written);
+                Encoding.UTF8.TryGetChars(utf8, dst, out int written);
                 Write(dst[..written]);
             }
             finally
@@ -93,7 +93,7 @@ public static class Logger
         public void Write<T>(T value)
             where T : ISpanFormattable
         {
-            var bufferLength = 16;
+            int bufferLength = 16;
             while (!TryWrite(value, bufferLength))
                 bufferLength <<= 1;
         }
@@ -104,13 +104,11 @@ public static class Logger
         {
             char[]? array = null;
             if (bufferLength * 2 >= 2048)
-            {
                 array = ArrayPool<char>.Shared.Rent(bufferLength);
-            }
             var dst = array ?? stackalloc char[bufferLength];
             try
             {
-                if (!value.TryFormat(dst, out var written, [], null))
+                if (!value.TryFormat(dst, out int written, [], null))
                     return false;
                 Write(dst[..written]);
                 return true;
@@ -125,7 +123,7 @@ public static class Logger
         public void WriteLine<T>(T value)
             where T : ISpanFormattable
         {
-            var bufferLength = 16;
+            int bufferLength = 16;
             while (!TryWriteLine(value, bufferLength))
                 bufferLength <<= 1;
         }
@@ -136,13 +134,11 @@ public static class Logger
         {
             char[]? array = null;
             if (bufferLength * 2 >= 2048)
-            {
                 array = ArrayPool<char>.Shared.Rent(bufferLength);
-            }
             var dst = array ?? stackalloc char[bufferLength];
             try
             {
-                if (!value.TryFormat(dst, out var written, [], null))
+                if (!value.TryFormat(dst, out int written, [], null))
                     return false;
                 WriteLine(dst[..written]);
                 return true;
@@ -157,14 +153,14 @@ public static class Logger
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void WriteLine(ReadOnlySpan<byte> utf8)
         {
-            var length = Encoding.UTF8.GetMaxCharCount(utf8.Length);
+            int length = Encoding.UTF8.GetMaxCharCount(utf8.Length);
             char[]? array = null;
             if (length >= 2048)
                 array = ArrayPool<char>.Shared.Rent(length);
             var dst = array ?? stackalloc char[length];
             try
             {
-                Encoding.UTF8.TryGetChars(utf8, dst, out var written);
+                Encoding.UTF8.TryGetChars(utf8, dst, out int written);
                 WriteLine(dst[..written]);
             }
             finally

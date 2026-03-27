@@ -8,15 +8,11 @@ namespace EmberVox.Rendering.Buffers;
 
 public sealed class BufferContext : IResource
 {
-    public Buffer Buffer { get; }
-    public unsafe Span<byte> MappedMemory =>
-        _mappedPointer != null ? new Span<byte>(_mappedPointer, (int)_size) : [];
-
     private readonly DeviceContext _deviceContext;
-    private readonly ulong _size;
     private readonly DeviceMemory _deviceMemory;
-    private readonly MemoryRequirements _memoryRequirements;
     private readonly unsafe void* _mappedPointer;
+    private readonly MemoryRequirements _memoryRequirements;
+    private readonly ulong _size;
 
     public unsafe BufferContext(
         DeviceContext deviceContext,
@@ -39,7 +35,10 @@ public sealed class BufferContext : IResource
 
         _deviceContext.Api.BindBufferMemory(_deviceContext.LogicalDevice, Buffer, _deviceMemory, 0);
 
-        if (memoryPropertyFlags.HasFlag(MemoryPropertyFlags.HostVisibleBit))
+        if (
+            (memoryPropertyFlags & MemoryPropertyFlags.HostVisibleBit)
+            == MemoryPropertyFlags.HostVisibleBit
+        )
         {
             _deviceContext.Api.MapMemory(
                 _deviceContext.LogicalDevice,
@@ -52,8 +51,14 @@ public sealed class BufferContext : IResource
 
             Logger.Metric?.WriteLine("-> Buffer created is visible to host");
         }
+
         Console.WriteLine();
     }
+
+    public Buffer Buffer { get; }
+
+    public unsafe Span<byte> MappedMemory =>
+        _mappedPointer != null ? new Span<byte>(_mappedPointer, (int)_size) : [];
 
     public unsafe void Dispose()
     {

@@ -7,9 +7,6 @@ namespace EmberVox.Rendering.Contexts;
 
 public sealed class SurfaceContext : IResource
 {
-    public KhrSurface KhrSurfaceExtension { get; }
-    public SurfaceKHR SurfaceKhr { get; }
-
     private readonly Instance _instance;
     private readonly IWindow _window;
 
@@ -25,6 +22,9 @@ public sealed class SurfaceContext : IResource
         SurfaceKhr = CreateSurface();
     }
 
+    public KhrSurface KhrSurfaceExtension { get; }
+    public SurfaceKHR SurfaceKhr { get; }
+
     public void Dispose()
     {
         KhrSurfaceExtension.DestroySurface(
@@ -37,6 +37,10 @@ public sealed class SurfaceContext : IResource
         GC.SuppressFinalize(this);
     }
 
-    private unsafe SurfaceKHR CreateSurface() =>
-        _window.VkSurface!.Create<AllocationCallbacks>(_instance.ToHandle(), null).ToSurface();
+    private unsafe SurfaceKHR CreateSurface()
+    {
+        return _window
+            .VkSurface!.Create<AllocationCallbacks>(_instance.ToHandle(), null)
+            .ToSurface();
+    }
 }

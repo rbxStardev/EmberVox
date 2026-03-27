@@ -6,13 +6,9 @@ namespace EmberVox.Rendering.Contexts;
 
 public sealed class SyncContext : IResource
 {
-    public Semaphore[] PresentCompleteSemaphores { get; private set; }
-    public Semaphore[] RenderFinishedSemaphores { get; private set; }
-    public Fence[] InFlightFences { get; private set; }
-
     private readonly DeviceContext _deviceContext;
-    private readonly SwapChainContext _swapChainContext;
     private readonly uint _maxFramesInFlight;
+    private readonly SwapChainContext _swapChainContext;
 
     public SyncContext(
         DeviceContext deviceContext,
@@ -31,21 +27,25 @@ public sealed class SyncContext : IResource
         CreateSyncObjects();
     }
 
+    public Semaphore[] PresentCompleteSemaphores { get; }
+    public Semaphore[] RenderFinishedSemaphores { get; }
+    public Fence[] InFlightFences { get; }
+
     public void Dispose()
     {
-        foreach (Fence fence in InFlightFences)
+        foreach (var fence in InFlightFences)
             _deviceContext.Api.DestroyFence(
                 _deviceContext.LogicalDevice,
                 fence,
                 ReadOnlySpan<AllocationCallbacks>.Empty
             );
-        foreach (Semaphore semaphore in RenderFinishedSemaphores)
+        foreach (var semaphore in RenderFinishedSemaphores)
             _deviceContext.Api.DestroySemaphore(
                 _deviceContext.LogicalDevice,
                 semaphore,
                 ReadOnlySpan<AllocationCallbacks>.Empty
             );
-        foreach (Semaphore semaphore in PresentCompleteSemaphores)
+        foreach (var semaphore in PresentCompleteSemaphores)
             _deviceContext.Api.DestroySemaphore(
                 _deviceContext.LogicalDevice,
                 semaphore,

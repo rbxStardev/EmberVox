@@ -1,4 +1,5 @@
 using EmberVox.Core.Extensions;
+using EmberVox.Core.Logging;
 using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.ResourceManagement;
@@ -8,10 +9,6 @@ namespace EmberVox.Rendering.Types;
 
 public class Mesh : IResource
 {
-    public BufferContext VertexBuffer { get; init; }
-    public BufferContext IndexBuffer { get; init; }
-    public uint IndexCount { get; init; }
-
     public Mesh(
         DeviceContext deviceContext,
         CommandContext commandContext,
@@ -62,6 +59,10 @@ public class Mesh : IResource
 
         IndexCount = (uint)indices.Length;
     }
+
+    public BufferContext VertexBuffer { get; init; }
+    public BufferContext IndexBuffer { get; init; }
+    public uint IndexCount { get; init; }
 
     public void Dispose()
     {

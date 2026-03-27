@@ -5,14 +5,12 @@ namespace EmberVox.Platform;
 
 public class WindowContext : IDisposable
 {
-    public IWindow Handle { get; }
-
     private const int WindowWidth = 1280;
     private const int WindowHeight = 720;
 
     public WindowContext()
     {
-        WindowOptions options = WindowOptions.DefaultVulkan with
+        var options = WindowOptions.DefaultVulkan with
         {
             Size = new Vector2D<int>(WindowWidth, WindowHeight),
             Title = "EmberVox: Vulkan",
@@ -22,6 +20,8 @@ public class WindowContext : IDisposable
         Handle = Window.Create(options);
         Handle.Initialize();
     }
+
+    public IWindow Handle { get; }
 
     public void Dispose()
     {

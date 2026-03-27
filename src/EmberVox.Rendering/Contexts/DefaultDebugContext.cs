@@ -8,9 +8,6 @@ namespace EmberVox.Rendering.Contexts;
 
 internal sealed class DefaultDebugContext : IResource
 {
-    public ExtDebugUtils DebugUtilsExtension { get; }
-    public DebugUtilsMessengerEXT DebugMessenger { get; }
-
     private readonly Instance _instance;
 
     public DefaultDebugContext(Vk vk, Instance instance)
@@ -23,6 +20,9 @@ internal sealed class DefaultDebugContext : IResource
         DebugUtilsExtension = debugUtilsExtension;
         DebugMessenger = CreateDebugMessenger();
     }
+
+    public ExtDebugUtils DebugUtilsExtension { get; }
+    public DebugUtilsMessengerEXT DebugMessenger { get; }
 
     public void Dispose()
     {
@@ -56,12 +56,13 @@ internal sealed class DefaultDebugContext : IResource
             PfnUserCallback = new PfnDebugUtilsMessengerCallbackEXT(DebugCallback),
         };
 
+        DebugUtilsMessengerEXT debugMessenger = default;
         if (
             DebugUtilsExtension.CreateDebugUtilsMessenger(
                 _instance,
-                &createInfo,
-                null,
-                out DebugUtilsMessengerEXT debugMessenger
+                new ReadOnlySpan<DebugUtilsMessengerCreateInfoEXT>(ref createInfo),
+                ReadOnlySpan<AllocationCallbacks>.Empty,
+                new Span<DebugUtilsMessengerEXT>(ref debugMessenger)
             ) != Result.Success
         )
             throw new Exception("Failed to create debug messenger");

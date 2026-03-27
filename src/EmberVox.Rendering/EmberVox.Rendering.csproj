@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="Silk.NET" Version="2.23.0" />
+    <PackageReference Include="Silk.NET.SPIRV.Reflect" Version="2.23.0" />
     <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="2.23.0" />
     <PackageReference Include="StbImageSharp" Version="2.30.15" />
   </ItemGroup>
@@ -16,26 +17,4 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Content Include="Shaders\slang.spv">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>Shaders\slang.spv</Link>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Textures\atlas.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="Textures\viking_room.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <Target Name="CompileSlangShaders" BeforeTargets="AssignTargetPaths">
-    <Message Importance="high" Text="--- [Slang] Compiling Shaders ---" />
-    <MakeDir Directories="$(ProjectDir)Shaders" />
-    <Exec Command="slangc $(ProjectDir)Shaders/shader.slang -target spirv -profile spirv_1_4 -emit-spirv-directly -fvk-use-entrypoint-name -entry vertMain -entry fragMain -matrix-layout-row-major -o $(ProjectDir)Shaders/slang.spv" />
-  </Target>
 </Project>

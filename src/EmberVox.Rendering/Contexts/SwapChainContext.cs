@@ -1,5 +1,6 @@
 using EmberVox.Core.Logging;
 using EmberVox.Rendering.ResourceManagement;
+using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
@@ -8,19 +9,13 @@ namespace EmberVox.Rendering.Contexts;
 
 public sealed class SwapChainContext : IResource
 {
-    public KhrSwapchain KhrSwapChainExtension { get; }
-    public SwapchainKHR SwapChainKhr { get; private set; }
-    public Image[] SwapChainImages { get; private set; }
-    public ImageView[] SwapChainImageViews { get; private set; }
-    public Format SwapChainImageFormat { get; }
-    public Extent2D SwapChainExtent { get; private set; }
+    private readonly DeviceContext _deviceContext;
+    private readonly Instance _instance;
+    private readonly PresentModeKHR _presentMode;
 
     private readonly SurfaceContext _surfaceContext;
-    private readonly DeviceContext _deviceContext;
-    private readonly IWindow _window;
-    private readonly Instance _instance;
     private readonly SurfaceFormatKHR _surfaceFormat;
-    private readonly PresentModeKHR _presentMode;
+    private readonly IWindow _window;
     private SurfaceCapabilitiesKHR _surfaceCapabilities;
 
     public SwapChainContext(
@@ -64,9 +59,16 @@ public sealed class SwapChainContext : IResource
         Logger.Metric?.WriteLine($"SwapChain Image Views: {SwapChainImageViews.Length}");
     }
 
+    public KhrSwapchain KhrSwapChainExtension { get; }
+    public SwapchainKHR SwapChainKhr { get; private set; }
+    public Image[] SwapChainImages { get; private set; }
+    public ImageView[] SwapChainImageViews { get; private set; }
+    public Format SwapChainImageFormat { get; }
+    public Extent2D SwapChainExtent { get; private set; }
+
     public void Dispose()
     {
-        foreach (ImageView imageView in SwapChainImageViews)
+        foreach (var imageView in SwapChainImageViews)
             _deviceContext.Api.DestroyImageView(
                 _deviceContext.LogicalDevice,
                 imageView,
@@ -85,13 +87,13 @@ public sealed class SwapChainContext : IResource
 
     public void RecreateSwapChain()
     {
-        SwapchainKHR oldSwapChain = SwapChainKhr;
+        var oldSwapChain = SwapChainKhr;
 
         _surfaceCapabilities = GetSurfaceCapabilities();
         SwapChainExtent = GetSwapChainExtent();
         SwapChainKhr = CreateSwapChain(oldSwapChain);
 
-        foreach (ImageView imageView in SwapChainImageViews)
+        foreach (var imageView in SwapChainImageViews)
             _deviceContext.Api.DestroyImageView(
                 _deviceContext.LogicalDevice,
                 imageView,
@@ -154,7 +156,7 @@ public sealed class SwapChainContext : IResource
                 _deviceContext.LogicalDevice,
                 &swapchainCreateInfo,
                 null,
-                out SwapchainKHR swapchainKhr
+                out var swapchainKhr
             ) != Result.Success
         )
             throw new Exception("Failed to create Swapchain");
@@ -167,7 +169,7 @@ public sealed class SwapChainContext : IResource
         _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfaceCapabilities(
             _deviceContext.PhysicalDevice,
             _surfaceContext.SurfaceKhr,
-            out SurfaceCapabilitiesKHR surfaceCapabilities
+            out var surfaceCapabilities
         );
 
         return surfaceCapabilities;
@@ -183,7 +185,7 @@ public sealed class SwapChainContext : IResource
             Span<SurfaceFormatKHR>.Empty
         );
 
-        SurfaceFormatKHR[] formats = new SurfaceFormatKHR[count[0]];
+        var formats = new SurfaceFormatKHR[count[0]];
         _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfaceFormats(
             _deviceContext.PhysicalDevice,
             _surfaceContext.SurfaceKhr,
@@ -191,14 +193,12 @@ public sealed class SwapChainContext : IResource
             formats.AsSpan()
         );
 
-        foreach (SurfaceFormatKHR format in formats)
-        {
+        foreach (var format in formats)
             if (
                 format is
                 { Format: Format.B8G8R8A8Srgb, ColorSpace: ColorSpaceKHR.SpaceSrgbNonlinearKhr }
             )
                 return format;
-        }
 
         return formats[0];
     }
@@ -213,7 +213,7 @@ public sealed class SwapChainContext : IResource
             Span<PresentModeKHR>.Empty
         );
 
-        PresentModeKHR[] presentModes = new PresentModeKHR[count[0]];
+        var presentModes = new PresentModeKHR[count[0]];
         _surfaceContext.KhrSurfaceExtension.GetPhysicalDeviceSurfacePresentModes(
             _deviceContext.PhysicalDevice,
             _surfaceContext.SurfaceKhr,
@@ -221,11 +221,9 @@ public sealed class SwapChainContext : IResource
             presentModes.AsSpan()
         );
 
-        foreach (PresentModeKHR presentMode in presentModes)
-        {
+        foreach (var presentMode in presentModes)
             if (presentMode is PresentModeKHR.MailboxKhr)
                 return presentMode;
-        }
 
         return PresentModeKHR.FifoKhr;
     }
@@ -264,7 +262,7 @@ public sealed class SwapChainContext : IResource
             Span<Image>.Empty
         );
 
-        Image[] images = new Image[count[0]];
+        var images = new Image[count[0]];
         KhrSwapChainExtension.GetSwapchainImages(
             _deviceContext.LogicalDevice,
             SwapChainKhr,
@@ -275,9 +273,9 @@ public sealed class SwapChainContext : IResource
         return images;
     }
 
-    private unsafe ImageView[] CreateSwapChainImageViews()
+    private ImageView[] CreateSwapChainImageViews()
     {
-        ImageView[] imageViews = new ImageView[SwapChainImages.Length];
+        var imageViews = new ImageView[SwapChainImages.Length];
 
         ImageViewCreateInfo createInfo = new()
         {
@@ -291,15 +289,14 @@ public sealed class SwapChainContext : IResource
         {
             createInfo.Image = SwapChainImages[i];
 
-            if (
-                _deviceContext.Api.CreateImageView(
-                    _deviceContext.LogicalDevice,
-                    &createInfo,
-                    null,
-                    out imageViews[i]
-                ) != Result.Success
-            )
-                throw new Exception("Failed to create ImageView for SwapChain");
+            imageViews[i] = ImageUtils.CreateImageView(
+                _deviceContext.Api,
+                _deviceContext.LogicalDevice,
+                SwapChainImages[i],
+                1,
+                SwapChainImageFormat,
+                ImageAspectFlags.ColorBit
+            );
         }
 
         return imageViews;

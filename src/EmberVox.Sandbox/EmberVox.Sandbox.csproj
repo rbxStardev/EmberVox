@@ -4,14 +4,11 @@
     <ProjectReference Include="..\EmberVox.Platform\EmberVox.Platform.csproj" />
     <ProjectReference Include="..\EmberVox.Engine\EmberVox.Engine.csproj" />
   </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Silk.NET.Assimp" Version="2.23.0" />
   </ItemGroup>
-  <ItemGroup>
-    <None Update="Models\viking_room.obj">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -19,4 +16,51 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="Models\viking_room.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Models\rubber_duck.glb">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Textures\atlas.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Textures\viking_room.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="CompileSlangShaders" BeforeTargets="AssignTargetPaths">
+    <Message Importance="high" Text="--- [Slang] Compiling Shaders ---" />
+    <MakeDir Directories="$(ProjectDir)Shaders" />
+    <ItemGroup>
+      <SlangVertShaders Include="$(ProjectDir)Shaders\*.vert.slang" />
+      <SlangFragShaders Include="$(ProjectDir)Shaders\*.frag.slang" />
+      <SlangGenericShaders
+        Include="$(ProjectDir)Shaders\*.slang"
+        Exclude="$(ProjectDir)Shaders\*.vert.slang;$(ProjectDir)Shaders\*.frag.slang"
+      />
+    </ItemGroup>
+    <Exec
+      Command="slangc %(SlangVertShaders.FullPath) -target spirv -profile spirv_1_4 -emit-spirv-directly -entry vertMain -matrix-layout-row-major -o $(ProjectDir)Shaders\%(SlangVertShaders.Filename).spv"
+      Condition="'@(SlangVertShaders)' != ''"
+    />
+    <Exec
+      Command="slangc %(SlangFragShaders.FullPath) -target spirv -profile spirv_1_4 -emit-spirv-directly -entry fragMain -matrix-layout-row-major -o $(ProjectDir)Shaders\%(SlangFragShaders.Filename).spv"
+      Condition="'@(SlangFragShaders)' != ''"
+    />
+    <Exec
+      Command="slangc %(SlangGenericShaders.FullPath) -target spirv -profile spirv_1_4 -emit-spirv-directly -matrix-layout-row-major -o $(ProjectDir)Shaders\%(SlangGenericShaders.Filename).spv"
+      Condition="'@(SlangGenericShaders)' != ''"
+    />
+  </Target>
+
+  <Target Name="CopyCompiledShaders" AfterTargets="CompileSlangShaders">
+    <ItemGroup>
+      <CompiledShaders Include="$(ProjectDir)Shaders\*.spv" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CompiledShaders)" DestinationFolder="$(OutputPath)Shaders" />
+  </Target>
 </Project>
