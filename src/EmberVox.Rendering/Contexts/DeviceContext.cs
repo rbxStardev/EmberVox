@@ -1,13 +1,12 @@
 using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
-using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 
 namespace EmberVox.Rendering.Contexts;
 
-public sealed class DeviceContext : IResource
+public sealed class DeviceContext : IDisposable
 {
     private static readonly string[] DeviceExtensions = [KhrSwapchain.ExtensionName];
 

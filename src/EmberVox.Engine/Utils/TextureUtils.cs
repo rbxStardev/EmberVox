@@ -1,5 +1,5 @@
 using EmberVox.Core.Types;
-using EmberVox.Rendering.RenderingManagement;
+using EmberVox.Rendering.Renderables;
 using StbImageSharp;
 
 namespace EmberVox.Engine.Utils;

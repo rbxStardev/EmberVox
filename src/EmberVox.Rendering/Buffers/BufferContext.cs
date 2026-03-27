@@ -1,12 +1,11 @@
 using EmberVox.Core.Logging;
 using EmberVox.Rendering.Contexts;
-using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 using Buffer = Silk.NET.Vulkan.Buffer;
 
 namespace EmberVox.Rendering.Buffers;
 
-public sealed class BufferContext : IResource
+public sealed class BufferContext : IDisposable
 {
     private readonly DeviceContext _deviceContext;
     private readonly DeviceMemory _deviceMemory;

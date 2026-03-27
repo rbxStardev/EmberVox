@@ -1,10 +1,9 @@
-using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace EmberVox.Rendering.Contexts;
 
-public sealed class SyncContext : IResource
+public sealed class SyncContext : IDisposable
 {
     private readonly DeviceContext _deviceContext;
     private readonly uint _maxFramesInFlight;

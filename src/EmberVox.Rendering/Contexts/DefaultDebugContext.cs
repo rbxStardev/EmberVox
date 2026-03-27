@@ -1,12 +1,11 @@
 using System.Runtime.InteropServices;
 using EmberVox.Core.Logging;
-using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.EXT;
 
 namespace EmberVox.Rendering.Contexts;
 
-internal sealed class DefaultDebugContext : IResource
+internal sealed class DefaultDebugContext : IDisposable
 {
     private readonly Instance _instance;
 

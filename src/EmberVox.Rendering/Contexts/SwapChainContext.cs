@@ -1,5 +1,4 @@
 using EmberVox.Core.Logging;
-using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
@@ -7,7 +6,7 @@ using Silk.NET.Windowing;
 
 namespace EmberVox.Rendering.Contexts;
 
-public sealed class SwapChainContext : IResource
+public sealed class SwapChainContext : IDisposable
 {
     private readonly DeviceContext _deviceContext;
     private readonly Instance _instance;

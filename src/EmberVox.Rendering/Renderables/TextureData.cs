@@ -1,4 +1,4 @@
-namespace EmberVox.Rendering.RenderingManagement;
+namespace EmberVox.Rendering.Renderables;
 
 public ref struct TextureData
 {

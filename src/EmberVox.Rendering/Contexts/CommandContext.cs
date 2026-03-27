@@ -1,11 +1,10 @@
 using System.ComponentModel;
 using EmberVox.Rendering.Buffers;
-using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
-public sealed class CommandContext : IResource
+public sealed class CommandContext : IDisposable
 {
     private readonly DeviceContext _deviceContext;
     private readonly uint _maxFramesInFlight;

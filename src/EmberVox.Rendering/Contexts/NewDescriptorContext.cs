@@ -1,19 +1,17 @@
 using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
-using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.ShaderReflection;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
-public sealed class NewDescriptorContext : IResource
+public sealed class NewDescriptorContext : IDisposable
 {
     private readonly DescriptorPool _descriptorPool;
 
     private readonly DeviceContext _deviceContext;
     private DescriptorSet[] _descriptorSets = [];
 
-    // TODO - Separate by layout set too
     public NewDescriptorContext(
         DeviceContext deviceContext,
         IDictionary<(uint binding, uint set), ShaderDescriptor> shaderDescriptors,

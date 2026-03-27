@@ -1,13 +1,11 @@
 using EmberVox.Core.Extensions;
-using EmberVox.Core.Logging;
 using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
-using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Types;
 
-public class Mesh : IResource
+public class Mesh : IDisposable
 {
     public Mesh(
         DeviceContext deviceContext,

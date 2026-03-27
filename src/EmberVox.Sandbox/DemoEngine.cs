@@ -1,15 +1,19 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Numerics;
 using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
 using EmberVox.Engine;
 using EmberVox.Engine.Components;
+using EmberVox.Engine.ResourceManagement;
 using EmberVox.Engine.Utils;
 using EmberVox.Engine.Voxels;
 using EmberVox.Engine.Voxels.Utils;
 using EmberVox.Platform;
 using EmberVox.Rendering;
 using EmberVox.Rendering.GraphicsPipeline;
-using EmberVox.Rendering.RenderingManagement;
+using EmberVox.Rendering.Renderables;
 using EmberVox.Rendering.Types;
 using Silk.NET.Assimp;
 using Silk.NET.Input;
@@ -29,13 +33,16 @@ public class DemoEngine : IDisposable
     private readonly VulkanRenderer _renderer;
     private readonly WindowContext _windowContext;
 
+    public ResourceManager ResourceManager { get; }
+    public InputManager InputManager { get; }
+
     public DemoEngine()
     {
         _windowContext = new WindowContext();
         _renderer = new VulkanRenderer(_windowContext);
+        ResourceManager = new ResourceManager();
         _assimp = Assimp.GetApi();
-
-        InputManager.Initialize(_windowContext.Handle.CreateInput());
+        InputManager = new InputManager(_windowContext.Handle.CreateInput());
 
         /*
         #region Viking Room
@@ -270,6 +277,8 @@ public class DemoEngine : IDisposable
         {
             Position = new Vector3(-1f, 0.5f, 0f),
         };
+        InputManager.MouseMoved += _mainCamera.InputManagerOnMouseMoved;
+        InputManager.MouseScrolled += _mainCamera.InputManagerOnMouseScrolled;
 
         byte[] vertCode = File.ReadAllBytes(
             Path.Combine(AppContext.BaseDirectory, "Shaders", "base.vert.spv")
@@ -346,6 +355,7 @@ public class DemoEngine : IDisposable
                 }
             );
         var shaderMaterial = shaderMaterialBuilder.Build();
+        ResourceManager.SubmitResource(shaderMaterial);
 
         //-> Gathering Model Vertices & Indices
         List<Vertex> voxelVertices = [];
@@ -374,7 +384,8 @@ public class DemoEngine : IDisposable
             _renderer.CommandContext,
             voxelTextureData
         );
-        _renderer.ResourceManager.SubmitResource(texture2D);
+        ResourceManager.SubmitResource(texture2D);
+
         shaderMaterial.SetShaderCombinedImageSampler(
             "texture",
             texture2D.Sampler,
@@ -392,6 +403,7 @@ public class DemoEngine : IDisposable
                 voxelIndices.ToArray()
             ),
         };
+        ResourceManager.SubmitResource(voxelMesh.Mesh);
 
         _renderer.RegisterShaderMaterial(shaderMaterial);
         _renderer.RegisterMesh(voxelMesh.Mesh, voxelMesh.ShaderMaterial);
@@ -463,6 +475,8 @@ public class DemoEngine : IDisposable
 
     public void Dispose()
     {
+        ResourceManager.Dispose();
+        _assimp.Dispose();
         _renderer.Dispose();
         _windowContext.Dispose();
     }
@@ -663,6 +677,8 @@ public class DemoEngine : IDisposable
 
     private void HandleOnUpdate(double deltaTime)
     {
-        _mainCamera.Update(deltaTime);
+        float flyDirection = InputManager.GetInputKeysAxis(Key.ControlLeft, Key.Space);
+        var movementDirection = InputManager.GetInputKeysVector(Key.A, Key.D, Key.S, Key.W);
+        _mainCamera.Update(deltaTime, flyDirection, movementDirection);
     }
 }

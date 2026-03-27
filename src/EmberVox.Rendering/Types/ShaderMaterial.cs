@@ -3,7 +3,6 @@ using EmberVox.Core.Logging;
 using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.GraphicsPipeline;
-using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.ShaderReflection;
 using Silk.NET.SPIRV.Reflect;
 using Silk.NET.Vulkan;
@@ -11,13 +10,14 @@ using DescriptorType = Silk.NET.Vulkan.DescriptorType;
 
 namespace EmberVox.Rendering.Types;
 
-public class ShaderMaterial : IResource
+public class ShaderMaterial : IDisposable
 {
     private readonly DeviceContext _deviceContext;
     private readonly IDictionary<(uint binding, uint set), ShaderDescriptor> _shaderDescriptors;
     private readonly SwapChainContext _swapChainContext;
     private readonly BufferContext[] _uniformBuffers;
 
+    // TODO -> Decouple graphics pipeline from shader material as a graphics pipeline can be used by many shader materials
     public unsafe ShaderMaterial(
         DeviceContext deviceContext,
         SwapChainContext swapChainContext,
@@ -130,7 +130,6 @@ public class ShaderMaterial : IResource
                     var writeDescriptorSet = new WriteDescriptorSet
                     {
                         SType = StructureType.WriteDescriptorSet,
-                        // TODO - replace this somehow with mergedDescriptor.Value.SetIndex
                         DstSet = DescriptorContext.GetDescriptorSet(i, mergedDescriptor.SetIndex),
                         DstBinding = mergedDescriptor.BindingIndex,
                         DstArrayElement = 0,

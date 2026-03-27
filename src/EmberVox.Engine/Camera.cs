@@ -15,9 +15,6 @@ public class Camera
     public Camera()
     {
         TransformComponent = new TransformComponent();
-
-        InputManager.MouseMoved += InputManagerOnMouseMoved;
-        InputManager.MouseScrolled += InputManagerOnMouseScrolled;
     }
 
     public TransformComponent TransformComponent { get; set; }
@@ -32,11 +29,8 @@ public class Camera
     private Vector3 Right => Vector3.Transform(Vector3.UnitX, TransformComponent.Rotation);
     private Vector3 Up => Vector3.Transform(Vector3.UnitY, TransformComponent.Rotation);
 
-    public void Update(double deltaTime)
+    public void Update(double deltaTime, float flyDirection, Vector2 movementDirection)
     {
-        float flyDirection = InputManager.GetInputKeysAxis(Key.ControlLeft, Key.Space);
-        var movementDirection = InputManager.GetInputKeysVector(Key.A, Key.D, Key.S, Key.W);
-
         var flatFront = Vector3.Normalize(Front with { Y = 0.0f });
 
         var velocity = Vector3.Zero;
@@ -100,7 +94,7 @@ public class Camera
         );
     }
 
-    private void InputManagerOnMouseMoved(object? _, Vector2 position)
+    public void InputManagerOnMouseMoved(object? _, Vector2 position)
     {
         if (_firstMouseMove)
         {
@@ -115,7 +109,7 @@ public class Camera
         ProcessMouseMove(offset);
     }
 
-    private void InputManagerOnMouseScrolled(object? _, ScrollWheel scrollWheel)
+    public void InputManagerOnMouseScrolled(object? _, ScrollWheel scrollWheel)
     {
         float offset = scrollWheel.Y;
 

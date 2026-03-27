@@ -3,7 +3,6 @@ using System.Numerics;
 using EmberVox.Core.Logging;
 using EmberVox.Platform;
 using EmberVox.Rendering.Contexts;
-using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Types;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
@@ -31,8 +30,6 @@ public sealed class VulkanRenderer : IDisposable
 
     private readonly Instance _instance;
     private readonly DefaultDebugContext _debugContext;
-
-    public ResourceManager ResourceManager { get; }
 
     public SurfaceContext SurfaceContext { get; }
     public DeviceContext DeviceContext { get; }
@@ -113,8 +110,6 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Info?.WriteLine("~ Buffers successfully initialized. ~");
         Console.WriteLine();
 
-        ResourceManager = new ResourceManager();
-
         //PlugEvents();
     }
 
@@ -123,8 +118,6 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Debug?.WriteLine("Application closed, disposing...");
 
         {
-            ResourceManager.Dispose();
-
             SyncContext.Dispose();
             Logger.Debug?.WriteLine("-> Disposed SyncContext");
 
@@ -168,13 +161,11 @@ public sealed class VulkanRenderer : IDisposable
     public void RegisterShaderMaterial(ShaderMaterial shaderMaterial)
     {
         _meshesToRender[shaderMaterial] = [];
-        ResourceManager.SubmitResource(shaderMaterial);
     }
 
     public void RegisterMesh(Mesh mesh, ShaderMaterial material)
     {
         _meshesToRender[material].Add(mesh);
-        ResourceManager.SubmitResource(mesh);
     }
 
     public void WindowOnFramebufferResize()

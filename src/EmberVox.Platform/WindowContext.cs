@@ -1,4 +1,5 @@
-﻿using Silk.NET.Maths;
+﻿using EmberVox.Engine;
+using Silk.NET.Maths;
 using Silk.NET.Windowing;
 
 namespace EmberVox.Platform;

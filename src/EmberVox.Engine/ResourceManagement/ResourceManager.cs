@@ -1,8 +1,8 @@
-namespace EmberVox.Rendering.ResourceManagement;
+namespace EmberVox.Engine.ResourceManagement;
 
 public sealed class ResourceManager : IDisposable
 {
-    private readonly Stack<WeakReference<IResource>> _resources = [];
+    private readonly Stack<WeakReference<IDisposable>> _resources = [];
 
     public void Dispose()
     {
@@ -13,9 +13,9 @@ public sealed class ResourceManager : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public void SubmitResource(IResource resource)
+    public void SubmitResource(IDisposable resource)
     {
-        WeakReference<IResource> resourceReference = new(resource);
+        WeakReference<IDisposable> resourceReference = new(resource);
         _resources.Push(resourceReference);
     }
 }

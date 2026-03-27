@@ -3,9 +3,9 @@ using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
 
-namespace EmberVox.Rendering.RenderingManagement;
+namespace EmberVox.Rendering.Renderables;
 
-public class Texture2D : IRenderable
+public class Texture2D : IDisposable
 {
     private readonly CommandContext _commandContext;
 
@@ -130,7 +130,7 @@ public class Texture2D : IRenderable
         GC.SuppressFinalize(this);
     }
 
-    // TODO - Move creation outside texture class
+    // TODO - Move sampler creation outside texture class
     private Sampler CreateTextureSampler()
     {
         var properties = _deviceContext.Api.GetPhysicalDeviceProperties(

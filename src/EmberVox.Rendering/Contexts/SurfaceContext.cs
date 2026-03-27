@@ -1,11 +1,10 @@
-using EmberVox.Rendering.ResourceManagement;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Silk.NET.Windowing;
 
 namespace EmberVox.Rendering.Contexts;
 
-public sealed class SurfaceContext : IResource
+public sealed class SurfaceContext : IDisposable
 {
     private readonly Instance _instance;
     private readonly IWindow _window;

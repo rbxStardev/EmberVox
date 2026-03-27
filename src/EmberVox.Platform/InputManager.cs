@@ -3,16 +3,16 @@ using Silk.NET.Input;
 
 namespace EmberVox.Engine;
 
-public static class InputManager
+public class InputManager
 {
-    private static IInputContext _inputContext = null!;
-    private static IKeyboard _mainKeyboard = null!;
-    private static IMouse _mainMouse = null!;
-    public static event EventHandler<Vector2>? MouseMoved;
-    public static event EventHandler<ScrollWheel>? MouseScrolled;
-    public static event EventHandler<Key>? KeyPressed;
+    private IInputContext _inputContext;
+    private readonly IKeyboard _mainKeyboard;
+    private readonly IMouse _mainMouse;
+    public event EventHandler<Vector2>? MouseMoved;
+    public event EventHandler<ScrollWheel>? MouseScrolled;
+    public event EventHandler<Key>? KeyPressed;
 
-    public static void Initialize(IInputContext inputContext)
+    public InputManager(IInputContext inputContext)
     {
         _inputContext = inputContext;
 
@@ -26,32 +26,32 @@ public static class InputManager
         _mainMouse.Cursor.CursorMode = CursorMode.Raw;
     }
 
-    private static void MainMouseOnMouseMove(IMouse mouse, Vector2 position)
+    private void MainMouseOnMouseMove(IMouse mouse, Vector2 position)
     {
-        MouseMoved?.Invoke(null, position);
+        MouseMoved?.Invoke(this, position);
     }
 
-    private static void MainMouseOnScroll(IMouse mouse, ScrollWheel scrollWheel)
+    private void MainMouseOnScroll(IMouse mouse, ScrollWheel scrollWheel)
     {
-        MouseScrolled?.Invoke(null, scrollWheel);
+        MouseScrolled?.Invoke(this, scrollWheel);
     }
 
-    private static void MainKeyboardOnKeyDown(IKeyboard keyboard, Key key, int strength)
+    private void MainKeyboardOnKeyDown(IKeyboard keyboard, Key key, int strength)
     {
-        KeyPressed?.Invoke(null, key);
+        KeyPressed?.Invoke(this, key);
     }
 
-    public static bool IsKeyPressed(Key key)
+    public bool IsKeyPressed(Key key)
     {
         return _mainKeyboard.IsKeyPressed(key);
     }
 
-    public static float GetInputKeyStrength(Key key2)
+    public float GetInputKeyStrength(Key key2)
     {
         return IsKeyPressed(key2) ? 1 : 0;
     }
 
-    public static float GetInputKeysAxis(Key negativeInput, Key positiveInput)
+    public float GetInputKeysAxis(Key negativeInput, Key positiveInput)
     {
         float negativeStrength = -GetInputKeyStrength(negativeInput);
         float positiveStrength = GetInputKeyStrength(positiveInput);
@@ -59,7 +59,7 @@ public static class InputManager
         return negativeStrength + positiveStrength;
     }
 
-    public static Vector2 GetInputKeysVector(
+    public Vector2 GetInputKeysVector(
         Key negativeInputX,
         Key positiveInputX,
         Key negativeInputY,

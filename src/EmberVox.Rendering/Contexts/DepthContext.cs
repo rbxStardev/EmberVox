@@ -1,10 +1,9 @@
-using EmberVox.Rendering.ResourceManagement;
 using EmberVox.Rendering.Utils;
 using Silk.NET.Vulkan;
 
 namespace EmberVox.Rendering.Contexts;
 
-public class DepthContext : IResource
+public class DepthContext : IDisposable
 {
     private readonly DeviceMemory _depthImageMemory;
 
