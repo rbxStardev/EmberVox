@@ -1,7 +1,7 @@
 struct VSInput
 {
-    float3 inPosition;
     float4 inColor;
+    float3 inPosition;
     float2 inTextCoord;
 }
 
@@ -12,6 +12,7 @@ struct UniformBuffer
     float4x4 proj;
 }
 
+[[vk::binding(0, 0)]]
 ConstantBuffer<UniformBuffer> ubo;
 
 struct VSOutput

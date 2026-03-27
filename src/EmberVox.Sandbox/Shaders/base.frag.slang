@@ -5,6 +5,7 @@ struct VSOutput
     float2 fragTexCoord;
 }
 
+[[vk::binding(1, 0)]]
 Sampler2D texture;
 
 [shader("fragment")]

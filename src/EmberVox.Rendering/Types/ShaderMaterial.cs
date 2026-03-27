@@ -14,7 +14,7 @@ namespace EmberVox.Rendering.Types;
 public class ShaderMaterial : IResource
 {
     private readonly DeviceContext _deviceContext;
-    private readonly IDictionary<(uint set, uint binding), ShaderDescriptor> _shaderDescriptors;
+    private readonly IDictionary<(uint binding, uint set), ShaderDescriptor> _shaderDescriptors;
     private readonly SwapChainContext _swapChainContext;
     private readonly BufferContext[] _uniformBuffers;
 
@@ -40,33 +40,46 @@ public class ShaderMaterial : IResource
         using var fragReflector = new ShaderReflector(reflect, fragmentShaderCode);
         fragReflector.Dump();
 
-        _shaderDescriptors = new Dictionary<(uint set, uint binding), ShaderDescriptor>();
+        _shaderDescriptors = new Dictionary<(uint binding, uint set), ShaderDescriptor>();
 
         foreach (var shaderDescriptor in vertReflector.GetShaderDescriptors())
-            _shaderDescriptors[(shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex)] =
+            _shaderDescriptors[(shaderDescriptor.BindingIndex, shaderDescriptor.SetIndex)] =
                 shaderDescriptor;
+
+        Logger.Debug?.WriteLine("=== PRE-MERGE VERT DESCRIPTORS ===");
+        foreach (var (key, val) in _shaderDescriptors)
+            Logger.Debug?.WriteLine(
+                $"  ({key.Item1},{key.Item2}) => type={val.BindingType}, stage={val.StageFlags}"
+            );
+
+        Logger.Debug?.WriteLine("=== PRE-MERGE FRAG DESCRIPTORS ===");
+        foreach (var d in fragReflector.GetShaderDescriptors())
+            Logger.Debug?.WriteLine(
+                $"  ({d.BindingIndex},{d.SetIndex}) => type={d.BindingType}, stage={d.StageFlags}"
+            );
 
         foreach (var shaderDescriptor in fragReflector.GetShaderDescriptors())
             if (
                 _shaderDescriptors.TryGetValue(
-                    (shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex),
+                    (shaderDescriptor.BindingIndex, shaderDescriptor.SetIndex),
                     out var existingShaderDescriptor
                 )
+                && existingShaderDescriptor.BindingType == shaderDescriptor.BindingType
             )
-                _shaderDescriptors[(shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex)] =
+                _shaderDescriptors[(shaderDescriptor.BindingIndex, shaderDescriptor.SetIndex)] =
                     existingShaderDescriptor with
                     {
                         StageFlags =
                             existingShaderDescriptor.StageFlags | shaderDescriptor.StageFlags,
                     };
             else
-                _shaderDescriptors[(shaderDescriptor.SetIndex, shaderDescriptor.BindingIndex)] =
+                _shaderDescriptors[(shaderDescriptor.BindingIndex, shaderDescriptor.SetIndex)] =
                     shaderDescriptor;
 
         Logger.Metric?.WriteLine($"Descriptors reflected: {_shaderDescriptors.Count}");
-
-        foreach (var shaderDescriptor in _shaderDescriptors.Values)
-            Logger.Metric?.WriteLine($"-> {shaderDescriptor}");
+        Logger.Metric?.WriteLine("Merged Descriptors:");
+        foreach (var (key, value) in _shaderDescriptors)
+            Logger.Metric?.WriteLine($"-> {key}: {value}");
 
         DescriptorContext = new NewDescriptorContext(
             deviceContext,

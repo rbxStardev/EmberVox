@@ -16,7 +16,7 @@ public sealed class NewDescriptorContext : IResource
     // TODO - Separate by layout set too
     public NewDescriptorContext(
         DeviceContext deviceContext,
-        IDictionary<(uint set, uint binding), ShaderDescriptor> shaderDescriptors,
+        IDictionary<(uint binding, uint set), ShaderDescriptor> shaderDescriptors,
         int setMultiplier
     )
     {

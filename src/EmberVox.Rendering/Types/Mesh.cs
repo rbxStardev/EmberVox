@@ -1,4 +1,5 @@
 using EmberVox.Core.Extensions;
+using EmberVox.Core.Logging;
 using EmberVox.Rendering.Buffers;
 using EmberVox.Rendering.Contexts;
 using EmberVox.Rendering.ResourceManagement;
