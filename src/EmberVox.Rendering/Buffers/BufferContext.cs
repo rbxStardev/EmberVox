@@ -47,8 +47,6 @@ public sealed class BufferContext : IDisposable
                 MemoryMapFlags.None,
                 ref _mappedPointer
             );
-
-            Logger.Metric?.WriteLine("-> Buffer created is visible to host");
         }
 
         Console.WriteLine();
@@ -96,10 +94,6 @@ public sealed class BufferContext : IDisposable
             ) != Result.Success
         )
             throw new Exception("Failed to create buffer");
-
-        Logger.Metric?.WriteLine("Created buffer, listing properties...");
-        Logger.Metric?.WriteLine($"-> Buffer size: {_size} bytes");
-        Logger.Metric?.WriteLine($"-> Buffer usage: {usage}");
 
         return buffer;
     }

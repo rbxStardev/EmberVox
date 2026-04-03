@@ -17,18 +17,9 @@ public class ShaderReflector : IDisposable
     public unsafe ShaderReflector(Reflect reflect, ReadOnlySpan<byte> shaderCode)
     {
         _reflect = reflect;
-
-        Logger.Info?.WriteLine("-----> Reflecting shader... <-----");
-
         _reflectModule = ReflectShaderCode(shaderCode);
         EntryPoint = new string((sbyte*)_reflectModule.EntryPointName);
         CompiledShaderCode = shaderCode.ToArray();
-
-        Logger.Metric?.WriteLine($"-> Size: {shaderCode.Length} bytes");
-        Logger.Metric?.WriteLine($"-> Stage: {StageFlags}");
-        Logger.Metric?.WriteLine($"-> Entry point: {EntryPoint}");
-
-        Logger.Info?.WriteLine("-----> Shader reflection: OK <-----");
     }
 
     public ShaderStageFlags StageFlags => (ShaderStageFlags)_reflectModule.ShaderStage;
@@ -43,16 +34,15 @@ public class ShaderReflector : IDisposable
     public unsafe ReadOnlySpan<ShaderDescriptor> GetShaderDescriptors()
     {
         Span<uint> descriptorBindingCount = stackalloc uint[1];
-        var reflectShaderModule = _reflectModule;
         _reflect.EnumerateDescriptorBindings(
-            new ReadOnlySpan<ReflectShaderModule>(ref reflectShaderModule),
+            new ReadOnlySpan<ReflectShaderModule>(ref _reflectModule),
             descriptorBindingCount,
             null
         );
 
         var ppDescriptorBindings = stackalloc DescriptorBinding*[(int)descriptorBindingCount[0]];
         _reflect.EnumerateDescriptorBindings(
-            new ReadOnlySpan<ReflectShaderModule>(ref reflectShaderModule),
+            new ReadOnlySpan<ReflectShaderModule>(ref _reflectModule),
             descriptorBindingCount,
             ppDescriptorBindings
         );
@@ -77,19 +67,53 @@ public class ShaderReflector : IDisposable
         return result;
     }
 
+    public unsafe ReadOnlySpan<ShaderPushConstant> GetShaderPushConstants()
+    {
+        Span<uint> pushConstantBlockCount = stackalloc uint[1];
+        _reflect.EnumeratePushConstantBlocks(
+            new ReadOnlySpan<ReflectShaderModule>(ref _reflectModule),
+            pushConstantBlockCount,
+            null
+        );
+
+        var ppPushConstantBlocks = stackalloc BlockVariable*[(int)pushConstantBlockCount[0]];
+        _reflect.EnumeratePushConstantBlocks(
+            new ReadOnlySpan<ReflectShaderModule>(ref _reflectModule),
+            pushConstantBlockCount,
+            ppPushConstantBlocks
+        );
+
+        Span<ShaderPushConstant> result = new ShaderPushConstant[pushConstantBlockCount[0]];
+
+        for (int i = 0; i < pushConstantBlockCount[0]; i++)
+        {
+            var pPushConstantBlock = ppPushConstantBlocks[i];
+
+            result[i] = new ShaderPushConstant
+            {
+                AbsoluteOffset = pPushConstantBlock->AbsoluteOffset,
+                Offset = pPushConstantBlock->Offset,
+                Size = pPushConstantBlock->Size,
+                Name = new string((sbyte*)pPushConstantBlock->Name),
+                StageFlags = StageFlags,
+            };
+        }
+
+        return result;
+    }
+
     public unsafe ReadOnlySpan<ShaderVariable> GetInputVariables()
     {
         Span<uint> inputVariableCount = stackalloc uint[1];
-        var reflectShaderModule = _reflectModule;
         _reflect.EnumerateInputVariables(
-            new ReadOnlySpan<ReflectShaderModule>(ref reflectShaderModule),
+            new ReadOnlySpan<ReflectShaderModule>(ref _reflectModule),
             inputVariableCount,
             null
         );
 
         var ppInterfaceVariables = stackalloc InterfaceVariable*[(int)inputVariableCount[0]];
         _reflect.EnumerateInputVariables(
-            new ReadOnlySpan<ReflectShaderModule>(ref reflectShaderModule),
+            new ReadOnlySpan<ReflectShaderModule>(ref _reflectModule),
             inputVariableCount,
             ppInterfaceVariables
         );
@@ -123,16 +147,15 @@ public class ShaderReflector : IDisposable
     public unsafe ReadOnlySpan<ShaderVariable> GetOutputVariables()
     {
         Span<uint> outputVariableCount = stackalloc uint[1];
-        var reflectShaderModule = _reflectModule;
         _reflect.EnumerateOutputVariables(
-            new ReadOnlySpan<ReflectShaderModule>(ref reflectShaderModule),
+            new ReadOnlySpan<ReflectShaderModule>(ref _reflectModule),
             outputVariableCount,
             null
         );
 
         var ppInterfaceVariables = stackalloc InterfaceVariable*[(int)outputVariableCount[0]];
         _reflect.EnumerateOutputVariables(
-            new ReadOnlySpan<ReflectShaderModule>(ref reflectShaderModule),
+            new ReadOnlySpan<ReflectShaderModule>(ref _reflectModule),
             outputVariableCount,
             ppInterfaceVariables
         );
@@ -161,20 +184,27 @@ public class ShaderReflector : IDisposable
     public void Dump()
     {
         Logger.Debug?.WriteLine("Dumping reflector...");
+        Console.WriteLine();
+
+        Logger.Metric?.WriteLine($"Dumping Shader Info...");
         Logger.Metric?.WriteLine($"-> shader stage: {StageFlags}");
         Logger.Metric?.WriteLine($"-> shader entry point: {EntryPoint}");
+        Console.WriteLine();
 
         Logger.Metric?.WriteLine("Dumping DescriptorBindings...");
         foreach (var shaderDescriptor in GetShaderDescriptors())
             Logger.Metric?.WriteLine($"-> {shaderDescriptor}");
+        Console.WriteLine();
 
         Logger.Metric?.WriteLine("Dumping InputVariables...");
         foreach (var inputVariable in GetInputVariables())
             Logger.Metric?.WriteLine($"-> {inputVariable}");
+        Console.WriteLine();
 
         Logger.Metric?.WriteLine("Dumping OutputVariables...");
         foreach (var outputVariable in GetOutputVariables())
             Logger.Metric?.WriteLine($"-> {outputVariable}");
+        Console.WriteLine();
 
         Logger.Debug?.WriteLine("Dumped reflector successfully");
         Console.WriteLine();

@@ -1,26 +1,7 @@
-struct VSInput
-{
-    float4 inColor;
-    float3 inPosition;
-    float2 inTextCoord;
-}
-
-struct UniformBuffer
-{
-    float4x4 model;
-    float4x4 view;
-    float4x4 proj;
-}
+import baseShared;
 
 [[vk::binding(0, 0)]]
 ConstantBuffer<UniformBuffer> ubo;
-
-struct VSOutput
-{
-    float4 pos : SV_Position;
-    float4 fragColor;
-    float2 fragTexCoord;
-}
 
 [shader("vertex")]
 VSOutput vertMain(VSInput input)

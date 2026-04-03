@@ -39,9 +39,6 @@ public sealed class VulkanRenderer : IDisposable
 
     public DepthContext DepthContext { get; private set; }
 
-    //private readonly BufferContext _vertexBuffer;
-    //private readonly BufferContext _indexBuffer;
-
     private readonly Dictionary<ShaderMaterial, List<Mesh>> _meshesToRender = [];
 
     private int _frameIndex;
@@ -89,25 +86,16 @@ public sealed class VulkanRenderer : IDisposable
         Logger.Info?.WriteLine("~ Vulkan successfully initialized. ~");
         Console.WriteLine();
 
-        Logger.Info?.WriteLine("~ Initializing Graphics Pipeline... ~");
+        Logger.Info?.WriteLine("~ Initializing Runtime Resources... ~");
         Console.WriteLine();
 
-        DepthContext = new DepthContext(DeviceContext, SwapChainContext);
-
         {
-            Console.WriteLine();
-
+            DepthContext = new DepthContext(DeviceContext, SwapChainContext);
             CommandContext = new CommandContext(DeviceContext, SwapChainContext, MaxFramesInFlight);
             SyncContext = new SyncContext(DeviceContext, SwapChainContext, MaxFramesInFlight);
         }
 
-        Logger.Info?.WriteLine("~ Graphics Pipeline successfully initialized. ~");
-        Console.WriteLine();
-
-        Logger.Info?.WriteLine("~ Initializing Buffers... ~");
-        Console.WriteLine();
-
-        Logger.Info?.WriteLine("~ Buffers successfully initialized. ~");
+        Logger.Info?.WriteLine("~ Runtime Resources successfully initialized. ~");
         Console.WriteLine();
 
         //PlugEvents();
@@ -222,15 +210,6 @@ public sealed class VulkanRenderer : IDisposable
         );
         DeviceContext.Api.ResetCommandBuffer(commandBuffer, CommandBufferResetFlags.None);
 
-        /*
-        _commandContext.RecordCommandBuffer(
-            _descriptorContext,
-            imageIndex,
-            _frameIndex,
-            _vertexBuffer,
-            _indexBuffer
-        );
-        */
         CommandContext.BeginCommandBufferRecording(DepthContext, imageIndex, _frameIndex);
 
         foreach (var keyValuePair in _meshesToRender)
@@ -242,17 +221,9 @@ public sealed class VulkanRenderer : IDisposable
                 ),
                 View = view,
                 Proj = projection,
-                //View = Matrix4x4.CreateLookAt(-Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitY),
-                /*Proj = Matrix4x4.CreatePerspectiveFieldOfView(
-                    float.DegreesToRadians(fieldOfView),
-                    (float)SwapChainContext.SwapChainExtent.Width
-                        / SwapChainContext.SwapChainExtent.Height,
-                    0.1f,
-                    500.0f
-                ),*/
             };
             var proj = uniformBufferObject.Proj;
-            proj.M22 *= -1; // Flip Y (DO NOT TURN OFFFFFF)
+            proj.M22 *= -1;
             uniformBufferObject.Proj = proj;
             keyValuePair.Key.SetShaderUniform((int)imageIndex, "ubo", uniformBufferObject);
 

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Numerics;
 using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
@@ -356,6 +353,200 @@ public class DemoEngine : IDisposable
             );
         var shaderMaterial = shaderMaterialBuilder.Build();
         ResourceManager.SubmitResource(shaderMaterial);
+        _renderer.RegisterShaderMaterial(shaderMaterial);
+
+        /*#region PBR
+
+        byte[] pbrVertCode = File.ReadAllBytes(
+            Path.Combine(AppContext.BaseDirectory, "Shaders", "pbr.vert.spv")
+        );
+        byte[] pbrFragCode = File.ReadAllBytes(
+            Path.Combine(AppContext.BaseDirectory, "Shaders", "pbr.frag.spv")
+        );
+
+        Logger.Warning?.WriteLine("Initializing PBR graphics pipeline");
+        var pbrMaterialBuilder = ShaderMaterialBuilder
+            .Empty.ProvideDependencies(_renderer.DeviceContext, _renderer.SwapChainContext)
+            .WithVertexShaderCode(pbrVertCode)
+            .WithFragmentShaderCode(pbrFragCode)
+            .WithPrimitiveTopology(PrimitiveTopology.TriangleList)
+            .WithTargetInfo(
+                new TargetInfo
+                {
+                    ColorTargetDescriptions =
+                    [
+                        new ColorTargetDescription
+                        {
+                            BlendState = new BlendState
+                            {
+                                ColorWriteMask =
+                                    ColorComponentFlags.RBit
+                                    | ColorComponentFlags.GBit
+                                    | ColorComponentFlags.BBit
+                                    | ColorComponentFlags.ABit,
+                                EnableBlend = true,
+                                SrcColorBlendFactor = BlendFactor.SrcAlpha,
+                                DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
+                                ColorBlendOp = BlendOp.Add,
+                                SrcAlphaBlendFactor = BlendFactor.One,
+                                DstAlphaBlendFactor = BlendFactor.Zero,
+                                AlphaBlendOp = BlendOp.Add,
+                            },
+                            Format = _renderer.SwapChainContext.SwapChainImageFormat,
+                        },
+                    ],
+                    DepthAttachmentFormat = _renderer.DepthContext.DepthImageFormat,
+                }
+            )
+            .WithInputRate(VertexInputRate.Vertex)
+            .WithRasterizerState(
+                new RasterizerState
+                {
+                    PolygonMode = PolygonMode.Fill,
+                    FrontFace = FrontFace.Clockwise,
+                    CullMode = CullModeFlags.BackBit,
+                    LineWidth = 1.0f,
+                    DepthClampEnable = false,
+                    DepthBiasClamp = 0.0f,
+                    DepthBiasEnable = false,
+                    DepthBiasConstantFactor = 0.0f,
+                    DepthBiasSlopeFactor = 1.0f,
+                    RasterizerDiscardEnable = false,
+                }
+            )
+            .WithMultisampleState(
+                new MultisampleState
+                {
+                    RasterizationSamples = SampleCountFlags.Count1Bit,
+                    SampleShadingEnable = false,
+                }
+            )
+            .WithDepthStencilState(
+                new DepthStencilState
+                {
+                    DepthTestEnable = true,
+                    DepthWriteEnable = true,
+                    DepthCompareOp = CompareOp.Less,
+                    DepthBoundsTestEnable = false,
+                    StencilTestEnable = false,
+                }
+            );
+        var pbrMaterial = pbrMaterialBuilder.Build();
+        ResourceManager.SubmitResource(pbrMaterial);
+        _renderer.RegisterShaderMaterial(pbrMaterial);
+
+        #endregion*/
+
+        #region --> Terrain <--
+
+        const int terrainSize = 512;
+        const float cellSize = 0.5f;
+
+        var terrainNoise = new FastNoiseLite();
+        terrainNoise.SetNoiseType(FastNoiseLite.NoiseType.Perlin);
+        terrainNoise.SetFrequency(0.02f);
+
+        List<Vertex> terrainVertices = [];
+        List<uint> terrainIndices = [];
+
+        for (int z = -terrainSize / 2; z < terrainSize / 2; z++)
+        {
+            for (int x = -terrainSize / 2; x < terrainSize / 2; x++)
+            {
+                float worldX = x * cellSize;
+                float worldZ = z * cellSize;
+
+                float raw = (SampleFbm(worldX, worldZ) + 1f) / 2f;
+
+                float curved = MathF.Pow(raw, 2.5f);
+
+                const float baseHeight = -15f;
+                const float heightScale = 15f;
+
+                float worldY = baseHeight + curved * heightScale;
+
+                float normX = (float)x / (terrainSize - 1);
+                float normZ = (float)z / (terrainSize - 1);
+                float normY = curved;
+
+                Vector4 color;
+                if (normY < 0.3f)
+                {
+                    float t = normY / 0.3f;
+                    color = new Vector4(0.1f, 0.4f + t * 0.2f, 0.1f, 1f);
+                }
+                else if (normY < 0.65f)
+                {
+                    float t = (normY - 0.3f) / 0.35f;
+                    color = new Vector4(0.3f + t * 0.3f, 0.5f - t * 0.3f, 0.1f, 1f);
+                }
+                else
+                {
+                    float t = (normY - 0.65f) / 0.35f;
+                    color = new Vector4(0.6f + t * 0.4f, 0.2f + t * 0.8f, 0.1f + t * 0.9f, 1f);
+                }
+
+                terrainVertices.Add(
+                    new Vertex
+                    {
+                        Position = new Vector3(worldX, worldY, worldZ),
+                        TexCoord = new Vector2(normX, normZ),
+                        Color = color,
+                    }
+                );
+            }
+        }
+
+        for (int z = 0; z < terrainSize - 1; z++)
+        {
+            for (int x = 0; x < terrainSize - 1; x++)
+            {
+                uint topLeft = (uint)(z * terrainSize + x);
+                uint topRight = topLeft + 1;
+                uint bottomLeft = (uint)((z + 1) * terrainSize + x);
+                uint bottomRight = bottomLeft + 1;
+
+                terrainIndices.Add(topLeft);
+                terrainIndices.Add(topRight);
+                terrainIndices.Add(bottomLeft);
+
+                terrainIndices.Add(topRight);
+                terrainIndices.Add(bottomRight);
+                terrainIndices.Add(bottomLeft);
+            }
+        }
+
+        var dummyData = new TextureData(1, 1, [255, 255, 255, 255]);
+        var dummyTexture = new Texture2D(
+            _renderer.DeviceContext,
+            _renderer.CommandContext,
+            dummyData
+        );
+        ResourceManager.SubmitResource(dummyTexture);
+
+        shaderMaterial.SetShaderCombinedImageSampler(
+            "texture",
+            dummyTexture.Sampler,
+            dummyTexture.ImageView,
+            ImageLayout.ShaderReadOnlyOptimal
+        );
+
+        MeshComponent terrainMesh = new()
+        {
+            ShaderMaterial = shaderMaterial,
+            Mesh = new Mesh(
+                _renderer.DeviceContext,
+                _renderer.CommandContext,
+                terrainVertices.ToArray(),
+                terrainIndices.ToArray()
+            ),
+        };
+        ResourceManager.SubmitResource(terrainMesh.Mesh);
+        _renderer.RegisterMesh(terrainMesh.Mesh, terrainMesh.ShaderMaterial);
+
+        #endregion
+
+        /*#region NoiseVoxel
 
         //-> Gathering Model Vertices & Indices
         List<Vertex> voxelVertices = [];
@@ -386,7 +577,7 @@ public class DemoEngine : IDisposable
         );
         ResourceManager.SubmitResource(texture2D);
 
-        shaderMaterial.SetShaderCombinedImageSampler(
+        pbrMaterial.SetShaderCombinedImageSampler(
             "texture",
             texture2D.Sampler,
             texture2D.ImageView,
@@ -395,7 +586,7 @@ public class DemoEngine : IDisposable
 
         MeshComponent voxelMesh = new()
         {
-            ShaderMaterial = shaderMaterial,
+            ShaderMaterial = pbrMaterial,
             Mesh = new Mesh(
                 _renderer.DeviceContext,
                 _renderer.CommandContext,
@@ -405,8 +596,10 @@ public class DemoEngine : IDisposable
         };
         ResourceManager.SubmitResource(voxelMesh.Mesh);
 
-        _renderer.RegisterShaderMaterial(shaderMaterial);
+        _renderer.RegisterShaderMaterial(pbrMaterial);
         _renderer.RegisterMesh(voxelMesh.Mesh, voxelMesh.ShaderMaterial);
+
+        #endregion*/
 
         /*
         // --> Textured Voxel <--
@@ -462,11 +655,13 @@ public class DemoEngine : IDisposable
         _renderer.RegisterMesh(texturedVoxelMesh.Mesh, texturedVoxelMesh.ShaderMaterial);
         */
 
-        var sphereMaterial = shaderMaterialBuilder.Build();
+        /*#region --> Sphere <--
+
+        var sphereMaterial = pbrMaterialBuilder.Build();
         ResourceManager.SubmitResource(sphereMaterial);
 
         //-> Gathering Model Vertices & Indices
-        UvSphereGenerator sphereGenerator = new UvSphereGenerator(1, 64);
+        UvSphereGenerator sphereGenerator = new UvSphereGenerator(1, 16);
 
         //-> Gathering Model Texture Data
         var sphereNoise = new FastNoiseLite();
@@ -521,6 +716,8 @@ public class DemoEngine : IDisposable
         _renderer.RegisterShaderMaterial(sphereMaterial);
         _renderer.RegisterMesh(sphereMesh.Mesh, sphereMesh.ShaderMaterial);
 
+        #endregion*/
+
         _windowContext.Handle.Update += HandleOnUpdate;
         _windowContext.Handle.FramebufferResize += HandleOnFramebufferResize;
         _windowContext.Handle.Render += HandleOnRender;
@@ -530,6 +727,30 @@ public class DemoEngine : IDisposable
         _windowContext.Handle.Run();
 
         _renderer.MainLoop();
+        return;
+
+        float SampleFbm(float x, float z)
+        {
+            float value = 0f;
+            float amplitude = 1f;
+            float frequency = 1f;
+            float maxValue = 0f;
+
+            for (int i = 0; i < 5; i++)
+            {
+                float sample = terrainNoise.GetNoise(x * frequency, z * frequency);
+
+                sample = 1f - MathF.Abs(sample);
+                sample *= sample;
+
+                value += sample * amplitude;
+                maxValue += amplitude;
+                amplitude *= 0.5f;
+                frequency *= 2.2f;
+            }
+
+            return value / maxValue;
+        }
     }
 
     public void Dispose()

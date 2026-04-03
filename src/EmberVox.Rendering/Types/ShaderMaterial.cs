@@ -14,6 +14,7 @@ public class ShaderMaterial : IDisposable
 {
     private readonly DeviceContext _deviceContext;
     private readonly IDictionary<(uint binding, uint set), ShaderDescriptor> _shaderDescriptors;
+    private readonly IDictionary<ShaderStageFlags, ShaderPushConstant> _shaderPushConstants;
     private readonly SwapChainContext _swapChainContext;
     private readonly BufferContext[] _uniformBuffers;
 
@@ -40,6 +41,8 @@ public class ShaderMaterial : IDisposable
         using var fragReflector = new ShaderReflector(reflect, fragmentShaderCode);
         fragReflector.Dump();
 
+        #region shader descriptors
+
         _shaderDescriptors = new Dictionary<(uint binding, uint set), ShaderDescriptor>();
 
         foreach (var shaderDescriptor in vertReflector.GetShaderDescriptors())
@@ -51,12 +54,14 @@ public class ShaderMaterial : IDisposable
             Logger.Debug?.WriteLine(
                 $"  ({key.Item1},{key.Item2}) => type={val.BindingType}, stage={val.StageFlags}"
             );
+        Console.WriteLine();
 
         Logger.Debug?.WriteLine("=== PRE-MERGE FRAG DESCRIPTORS ===");
         foreach (var d in fragReflector.GetShaderDescriptors())
             Logger.Debug?.WriteLine(
                 $"  ({d.BindingIndex},{d.SetIndex}) => type={d.BindingType}, stage={d.StageFlags}"
             );
+        Console.WriteLine();
 
         foreach (var shaderDescriptor in fragReflector.GetShaderDescriptors())
             if (
@@ -80,6 +85,7 @@ public class ShaderMaterial : IDisposable
         Logger.Metric?.WriteLine("Merged Descriptors:");
         foreach (var (key, value) in _shaderDescriptors)
             Logger.Metric?.WriteLine($"-> {key}: {value}");
+        Console.WriteLine();
 
         DescriptorContext = new NewDescriptorContext(
             deviceContext,
@@ -87,11 +93,58 @@ public class ShaderMaterial : IDisposable
             swapChainContext.SwapChainImages.Length
         );
 
+        #endregion
+
+        #region shader push constants
+
+        // TODO - Finish merging push constants and yeah do that thing
+        _shaderPushConstants = new Dictionary<ShaderStageFlags, ShaderPushConstant>();
+
+        foreach (var shaderPushConstant in vertReflector.GetShaderPushConstants())
+            _shaderPushConstants[shaderPushConstant.StageFlags] = shaderPushConstant;
+
+        Logger.Debug?.WriteLine("=== VERT PUSH CONSTANTS ===");
+        foreach (var (key, val) in _shaderPushConstants)
+            Logger.Debug?.WriteLine($"  ({key}) => name={val.Name}, stage={val.StageFlags}");
+        Console.WriteLine();
+
+        Logger.Debug?.WriteLine("=== FRAG PUSH CONSTANTS ===");
+        foreach (var shaderPushConstant in fragReflector.GetShaderPushConstants())
+            Logger.Debug?.WriteLine(
+                $"  ({shaderPushConstant.AbsoluteOffset}) => name={shaderPushConstant.Name}, stage={shaderPushConstant.StageFlags}"
+            );
+        Console.WriteLine();
+
+        foreach (var shaderPushConstant in fragReflector.GetShaderPushConstants())
+        {
+            if (_shaderPushConstants.TryGetValue(shaderPushConstant.StageFlags, out _))
+                continue;
+            _shaderPushConstants[shaderPushConstant.StageFlags] = shaderPushConstant;
+
+            Logger.Metric?.WriteLine($"Push constants reflected: {_shaderPushConstants.Count}");
+            Logger.Metric?.WriteLine("Available PushConstants:");
+            foreach (var (key, value) in _shaderPushConstants)
+                Logger.Metric?.WriteLine($"-> {key}: {value}");
+            Console.WriteLine();
+        }
+
+        PushConstantRange[] pushConstantRanges = _shaderPushConstants
+            .Values.Select(shaderPushConstant => new PushConstantRange
+            {
+                Offset = shaderPushConstant.AbsoluteOffset,
+                Size = shaderPushConstant.Size,
+                StageFlags = shaderPushConstant.StageFlags,
+            })
+            .ToArray();
+
+        #endregion
+
         GraphicsPipeline = new NewGraphicsPipeline(
             deviceContext,
             vertReflector,
             fragReflector,
             DescriptorContext.DescriptorSetLayouts.Values.ToArray(),
+            pushConstantRanges,
             primitiveTopology,
             targetInfo,
             inputRate,

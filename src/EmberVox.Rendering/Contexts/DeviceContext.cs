@@ -1,5 +1,6 @@
 using EmberVox.Core.Logging;
 using EmberVox.Core.Types;
+using Silk.NET.Core;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
@@ -157,7 +158,10 @@ public sealed class DeviceContext : IDisposable
         Logger.Info?.WriteLine("Checking if physical device is suitable...");
 
         bool hasVersion = Api.GetPhysicalDeviceProperties(device).ApiVersion >= Vk.Version13;
-        Logger.Metric?.WriteLine("Physical device vulkan version is greater than Vk13 (Passed)");
+        Version32 version = (Version32)Api.GetPhysicalDeviceProperties(device).ApiVersion;
+        Logger.Metric?.WriteLine(
+            $"Physical device vulkan version ({version.Major}.{version.Minor}.{version.Patch}) is equal or greater than {Vk.Version13.Major}.{Vk.Version13.Minor}.{Vk.Version13.Patch} (Passed)"
+        );
 
         Span<uint> queueFamilyCount = stackalloc uint[1];
         Api.GetPhysicalDeviceQueueFamilyProperties(

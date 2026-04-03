@@ -1,9 +1,4 @@
-struct VSOutput
-{
-    float4 pos : SV_Position;
-    float4 fragColor;
-    float2 fragTexCoord;
-}
+import baseShared;
 
 [[vk::binding(1, 0)]]
 Sampler2D texture;

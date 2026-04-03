@@ -139,9 +139,9 @@ public class Texture2D : IDisposable
         SamplerCreateInfo samplerInfo = new()
         {
             SType = StructureType.SamplerCreateInfo,
-            MagFilter = Filter.Nearest,
-            MinFilter = Filter.Nearest,
-            MipmapMode = SamplerMipmapMode.Nearest,
+            MagFilter = Filter.Linear,
+            MinFilter = Filter.Linear,
+            MipmapMode = SamplerMipmapMode.Linear,
             AddressModeU = SamplerAddressMode.Repeat,
             AddressModeV = SamplerAddressMode.Repeat,
             AddressModeW = SamplerAddressMode.Repeat,
